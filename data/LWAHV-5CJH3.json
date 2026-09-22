@@ -1,0 +1,47 @@
+{
+  "project": {
+    "owners": "Michelle",
+    "site": "30 Normandy Street, Sunnybank Hills",
+    "projectNo": "P2022-0019",
+    "contractDate": "",
+    "preparedBy": "Walter Design & Development Pty Ltd"
+  },
+  "variations": [
+    {
+      "id": "v1790042484318",
+      "no": "VO-001",
+      "title": "Hydraulic & Civil",
+      "desc": "Hydraulic Engineer:\nStormwater & Sump Pump Design: Certifying the channel grate drain, pump station capacity, dual-pump redundancy, and backup power to protect the basement against inundation.\n\nCivil Engineer:\nOverland Surface Flow / Crest Height: Demonstrating that surface runoff from the street or surrounding property cannot surcharge into the basement entrance.",
+      "ref": "",
+      "requestedBy": "owner",
+      "nature": "added",
+      "dateRequested": "2026-09-22",
+      "dateIssued": "2026-09-22",
+      "lineItems": [
+        {
+          "desc": "Engineer Hydraulic Design",
+          "ref": "",
+          "amount": 8000
+        }
+      ],
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 30,
+      "eotCauses": [
+        "Drawing / design amendment",
+        "Approvals / certification"
+      ],
+      "payment": "next",
+      "paymentDue": "",
+      "status": "issued",
+      "sign": null,
+      "note": "",
+      "example": false
+    }
+  ],
+  "updatedAt": "2026-09-22T06:59:04.049Z"
+}
