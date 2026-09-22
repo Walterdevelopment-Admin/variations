@@ -432,6 +432,7 @@ function getProjectId(){
 }
 const projectId = getProjectId();
 const KEY = KEY_BASE + (projectId ? ("::"+projectId) : "");
+const DRAFT_KEY = KEY + "::draft";
 function projectLink(id){ return location.origin + location.pathname + "?p=" + id; }
 function newToken(){
   const a="ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let s="";
@@ -1010,7 +1011,24 @@ function openForm(id){
   if(!formVo.lineItems || !formVo.lineItems.length) formVo.lineItems=[{desc:"",ref:"",amount:""}];
   renderForm(!!id);
 }
+/* draft auto-save: never lose an in-progress variation if the page reloads */
+let formOpen=false, _draftT=null;
+function scheduleDraft(){ clearTimeout(_draftT); _draftT=setTimeout(saveDraft,400); }
+function saveDraft(){ if(!formOpen||!formVo) return; try{ localStorage.setItem(DRAFT_KEY, JSON.stringify(formVo)); }catch(e){} }
+function clearDraft(){ try{ localStorage.removeItem(DRAFT_KEY); }catch(e){} }
+["input","change"].forEach(ev=>document.addEventListener(ev,()=>{ if(formOpen) scheduleDraft(); }));
+function checkDraft(){
+  if(!(state.settings.role==="builder" && canBuild())) return;
+  let d=null; try{ d=JSON.parse(localStorage.getItem(DRAFT_KEY)||"null"); }catch(e){}
+  const has = d && (String(d.title||"").trim() || String(d.desc||"").trim() || (Array.isArray(d.lineItems)&&d.lineItems.some(i=>i&&(i.desc||i.amount))));
+  if(!has){ clearDraft(); return; }
+  uiConfirm({title:"Resume unsaved variation?",message:"You have a variation that wasn't saved last time. Resume editing it now?",confirmLabel:"Resume editing"}).then(ok=>{
+    if(ok){ formVo=d; if(!formVo.lineItems||!formVo.lineItems.length) formVo.lineItems=[{desc:"",ref:"",amount:""}]; renderForm(!!state.variations.find(v=>v.id===d.id)); }
+    else { clearDraft(); }
+  });
+}
 function renderForm(isEdit){
+  formOpen = true;
   const v = formVo;
   const opt = (obj,cur)=>Object.entries(obj).map(([k,l])=>`<option value="${k}" ${k===cur?"selected":""}>${l}</option>`).join("");
   const liRows = v.lineItems.map((i,idx)=>`
@@ -1093,7 +1111,7 @@ function saveForm(){
   if(idx>=0) state.variations[idx]=formVo; else state.variations.push(formVo);
   openIds.add(formVo.id); closeModal(); render(); toast(idx>=0?"Variation updated.":"Variation added.");
 }
-function closeModal(){ document.getElementById("modalRoot").innerHTML=""; }
+function closeModal(){ if(formOpen){ formOpen=false; clearDraft(); } document.getElementById("modalRoot").innerHTML=""; }
 
 /* ---------- in-page dialogs (sandboxed iframes block native prompt/confirm) ---------- */
 function uiPrompt(o){
@@ -1281,6 +1299,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !dialogOpen()) c
 /* ---------- boot ---------- */
 applyTheme();
 render();
+checkDraft();
 </script>
 
 </body>
