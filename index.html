@@ -264,6 +264,8 @@ label.ck input{margin-top:3px;accent-color:var(--accent);width:15px;height:15px;
 .proj-name{font-weight:600;font-size:13.5px;display:flex;align-items:center;gap:8px}
 .proj-link{font-size:11px;color:var(--muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .cur-tag{font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;font-weight:700;color:var(--ok);border:1px solid var(--ok-line);border-radius:5px;padding:1px 5px}
+.proj-del{color:var(--bad);font-size:15px;line-height:1;padding:8px 11px}
+.proj-del:hover{border-color:var(--bad);background:var(--bad-soft)}
 
 .vo-foot{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end;margin-top:16px;padding-top:14px;border-top:1px dotted var(--line)}
 
@@ -1154,6 +1156,7 @@ async function newProject(){
   location.href = projectLink(id);
 }
 function openProjects(){
+  const isBuilder = state.settings.role==="builder" && canBuild();
   const idx=loadIndex();
   const entries=Object.entries(idx).sort((a,b)=>String(b[1].created||"").localeCompare(String(a[1].created||"")));
   const curInfo = projectId ? (idx[projectId]||{name:(state.project.owners||"This project")}) : null;
@@ -1174,6 +1177,7 @@ function openProjects(){
           <div style="display:flex;gap:8px;flex-shrink:0">
             <button class="btn ghost" onclick="copyText('${esc(projectLink(id))}')">Copy</button>
             ${isCur?'':`<button class="btn" onclick="location.href='${esc(projectLink(id))}'">Open</button>`}
+            ${isBuilder?`<button class="btn ghost proj-del" title="Delete this project" aria-label="Delete project ${esc(info.name||'')}" onclick="deleteProject('${id}')">✕</button>`:''}
           </div></div>`;
       }).join("")
     : `<p class="help">No projects created on this device yet.</p>`;
@@ -1183,14 +1187,27 @@ function openProjects(){
       <div class="modal-body">
         <p style="font-size:13.5px;color:var(--muted);margin:0">Each building gets its own link. Send an owner only their link — they'll see just their register.</p>
         ${curBlock}
+        ${isBuilder ? `
         <button class="btn primary" onclick="newProject()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg> New project (new link)</button>
         <fieldset><legend>Projects on this device</legend>
           <div style="display:flex;flex-direction:column;gap:10px">${list}</div>
-          <p class="help" style="margin:10px 0 0">This list is stored in this browser. On a static (GitHub Pages) host, opening a link shows the register saved in that browser — see the note in Share &amp; sync about moving data between devices.</p>
-        </fieldset>
+          <p class="help" style="margin:10px 0 0">The ✕ deletes a project from <b>this device</b> and clears its saved data here. This list is stored in this browser only. See <b>Share &amp; sync</b> for moving data between devices.</p>
+        </fieldset>` : `
+        <p class="help">Creating and deleting projects is available in <b>Builder</b> view only.</p>`}
       </div>
       <div class="modal-foot"><button class="btn" onclick="closeModal()">Done</button></div>
     </div></div>`;
+}
+async function deleteProject(id){
+  if(!(state.settings.role==="builder" && canBuild())){ toast("Only the builder can delete projects."); return; }
+  const idx=loadIndex(); const info=idx[id]||{};
+  const ok=await uiConfirm({title:"Delete project",message:"Delete “"+(info.name||"this project")+"” from this device? Its saved variations on this device are removed and can't be recovered. (An owner who already has the link keeps their own copy.)",confirmLabel:"Delete project",danger:true});
+  if(!ok) return;
+  try{ localStorage.removeItem(KEY_BASE+"::"+id); }catch(e){}
+  delete idx[id]; saveIndex(idx);
+  toast("Project deleted.");
+  if(id===projectId){ location.href = location.origin+location.pathname; return; }
+  openProjects();
 }
 
 /* ---------- share & sync ---------- */
@@ -1203,7 +1220,7 @@ function openShare(){
         <p style="font-size:13.5px;color:var(--muted);margin:0">This register lives in the page. Each device keeps its own copy, so use the buttons below to move the data between your devices, or to send it to your owner.</p>
         <fieldset><legend>Send this project to the Owner</legend>
           <p style="font-size:13px;color:var(--ink-soft);margin:0 0 8px">Send the Owner <b>this project's link</b> (use <b>Projects</b> to give each building its own link). They open it, review, and sign each variation, then print/save each approval as a PDF to send back.</p>
-          <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" onclick="copyLink()">Copy this project's link</button><button class="btn ghost" onclick="closeModal();openProjects()">Manage projects &amp; links</button></div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" onclick="copyLink()">Copy this project's link</button><button class="btn ghost builder-only" onclick="closeModal();openProjects()">Manage projects &amp; links</button></div>
         </fieldset>
         <fieldset><legend>Back up / move to another device</legend>
           <p class="help" style="margin:0 0 8px">Copy this data, then paste it into the same page on another device and press Load.</p>
