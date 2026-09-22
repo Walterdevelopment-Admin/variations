@@ -480,6 +480,7 @@ async function ghPut(path,obj,message,isRetry){
   if(shaMap[path]) body.sha=shaMap[path];
   let r; try{ r=await fetch(ghUrl(path),{method:"PUT",headers:ghHeaders({"Content-Type":"application/json"}),body:JSON.stringify(body)}); }catch(e){ setSync("Save failed — retries next change"); return false; }
   if(r.status===401){ tokenBad=true; updateSyncBadge(); return false; }
+  if(r.status===403){ setSync("No write access"); return false; }
   if((r.status===409||r.status===422)&&!isRetry){ await ghGet(path); return await ghPut(path,obj,message,true); }
   if(!r.ok){ setSync("Save failed — retries next change"); return false; }
   try{ const d=await r.json(); if(d&&d.content&&d.content.sha) shaMap[path]=d.content.sha; }catch(e){}
@@ -535,8 +536,33 @@ async function openToken(){
   const v=t.trim();
   try{ if(v) localStorage.setItem(GH_TOKEN_KEY,v); else localStorage.removeItem(GH_TOKEN_KEY); }catch(e){}
   GH_TOKEN=v||null; tokenBad=false; previewOwner=false;
-  await syncPull(); render(); updateSyncBadge();
-  toast(GH_TOKEN?"Connected — your changes now sync to everyone with the link.":"Disconnected — this device is read-only.");
+  render();
+  if(GH_TOKEN){ await afterConnect(); }
+  else { updateSyncBadge(); toast("Disconnected — this device is read-only."); }
+}
+async function afterConnect(){
+  setSync("Connecting…");
+  const res=await ghGet(dataPath(projectId));
+  if(res && res.error==="auth"){ updateSyncBadge(); render(); toast("That token was rejected — check it and reconnect."); return; }
+  if(res && res.obj){ applyRemote(res.obj); updateSyncBadge(); toast("Connected — loaded the latest from GitHub."); return; }
+  // no remote file yet: publish the current register so it exists on GitHub and can sync
+  const ok=await ghPut(dataPath(projectId), {project:state.project, variations:state.variations, updatedAt:new Date().toISOString()}, "Publish register"+(projectId?(" ["+projectId+"]"):""));
+  if(ok){
+    lastRemoteJSON=JSON.stringify({project:state.project, variations:state.variations});
+    if(projectId){ try{ await addToIndex(projectId, state.project.owners||state.project.site||"Untitled"); }catch(e){} }
+    updateSyncBadge(); render(); toast("Connected — this register is now published to GitHub and will sync to everyone with the link.");
+  } else {
+    updateSyncBadge(); render();
+    toast("Connected, but saving failed — your token needs Contents: Read and write on the variations repo.");
+  }
+}
+function publishNow(){
+  if(!canWrite()){ toast("Connect as builder first."); return; }
+  clearTimeout(_pushT);
+  ghPut(dataPath(projectId), {project:state.project, variations:state.variations, updatedAt:new Date().toISOString()}, "Publish register"+(projectId?(" ["+projectId+"]"):"")).then(async ok=>{
+    if(ok){ lastRemoteJSON=JSON.stringify({project:state.project, variations:state.variations}); if(projectId){ try{ await addToIndex(projectId, state.project.owners||state.project.site||"Untitled"); }catch(e){} } toast("Published to GitHub — everyone with the link now sees this."); }
+    else { toast("Publish failed — your token needs Contents: Read and write."); }
+  });
 }
 
 const GST = 0.10;
@@ -639,6 +665,7 @@ function renderLockbar(){
   }else if(canWrite() && !previewOwner){
     host.className="lockbar locked";
     host.innerHTML=`${cloud}<span class="lb-txt"><b>Builder — connected & syncing to GitHub</b> (<span id="syncStatus">Synced</span>). Your changes save automatically and everyone with the link sees them.</span>
+      <button class="btn ghost" onclick="publishNow()">Publish now</button>
       <button class="btn ghost" onclick="previewOwner=true;render();">Preview owner view</button>
       <button class="btn ghost" onclick="openToken()">Disconnect</button>`;
   }else if(canWrite() && previewOwner){
