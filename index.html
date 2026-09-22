@@ -250,6 +250,8 @@ label.ck input{margin-top:3px;accent-color:var(--accent);width:15px;height:15px;
 .lockbar .btn{flex-shrink:0}
 .lock-ind{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:7px 11px;border:1px solid var(--line);border-radius:999px}
 .lock-ind svg{width:13px;height:13px}
+.rec-code{font-size:26px;font-weight:600;letter-spacing:.14em;text-align:center;color:var(--accent-ink);
+  background:var(--accent-soft);border:1px dashed var(--accent);border-radius:10px;padding:16px;user-select:all}
 
 /* projects */
 .proj-chip{display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--ink-soft);background:var(--surface);
@@ -580,8 +582,10 @@ async function setPin(){
   const p2=await uiPrompt({title:"Confirm passcode",message:"Re-enter the same passcode to confirm.",placeholder:"Re-enter passcode",password:true,confirmLabel:"Set passcode"});
   if(p2===null) return;
   if(p1!==p2){ toast("Passcodes didn't match — try again."); return; }
-  state.settings.builderPin=await sha(p1); setUnlock(true); save(); render(); renderPinControls();
-  toast("Passcode set. Editing is now locked to this device.");
+  state.settings.builderPin=await sha(p1); setUnlock(true);
+  const rec=newRecoveryCode(); state.settings.recoveryHash=await sha(normRec(rec));
+  save(); render(); renderPinControls();
+  showRecovery(rec);
 }
 async function changePin(){
   if(hasPin()){ const cur=await uiPrompt({title:"Change passcode",message:"Enter your current passcode first.",placeholder:"Current passcode",password:true,confirmLabel:"Continue"}); if(cur===null)return; if(!await verifyPin(cur)){ toast("Incorrect passcode."); return; } }
@@ -593,6 +597,37 @@ async function removePin(){
   state.settings.builderPin=null; save(); render(); renderPinControls(); toast("Passcode removed — editing is open again.");
 }
 function lockThisDevice(){ setUnlock(false); state.settings.role="owner"; render(); toast("Locked. Enter the passcode to edit again."); }
+
+/* ---------- passcode recovery ---------- */
+function normRec(s){ return String(s).replace(/[^A-Za-z0-9]/g,"").toUpperCase(); }
+function newRecoveryCode(){
+  const a="ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let s="";
+  let arr=null; try{ arr=crypto.getRandomValues(new Uint32Array(8)); }catch(e){}
+  for(let i=0;i<8;i++){ s+=a[(arr?arr[i]:Math.floor(Math.random()*1e9))%a.length]; if(i===3)s+="-"; }
+  return s;
+}
+function showRecovery(code){
+  document.getElementById("dialogRoot").innerHTML=`<div class="modal-bg dlg" id="dlgBg">
+    <div class="modal" style="max-width:440px" role="dialog" aria-modal="true">
+      <div class="modal-head"><h3>Save your recovery code</h3></div>
+      <div class="modal-body">
+        <p style="margin:0;font-size:13.5px;color:var(--ink-soft);line-height:1.5">Your passcode is set. If you ever forget it, this recovery code lets you reset it. <b>Save it now</b> — it is shown once and cannot be recovered later.</p>
+        <div class="rec-code mono">${esc(code)}</div>
+        <button class="btn" onclick="copyText('${esc(code)}')">Copy recovery code</button>
+        <p class="help" style="margin:0">Keep it in your password manager or phone notes. Anyone with this code can reset the passcode, so keep it private.</p>
+      </div>
+      <div class="modal-foot"><button class="btn primary" onclick="document.getElementById('dialogRoot').innerHTML=''">I've saved it</button></div>
+    </div></div>`;
+}
+async function resetWithRecovery(){
+  if(!state.settings.recoveryHash){ toast("No recovery code was saved for this passcode, so it can't be reset here."); return; }
+  const code=await uiPrompt({title:"Reset passcode",message:"Enter your recovery code to set a new passcode.",placeholder:"Recovery code (e.g. R7K2-9WPX)",confirmLabel:"Verify"});
+  if(code===null) return;
+  if((await sha(normRec(code)))!==state.settings.recoveryHash){ toast("That recovery code isn't right."); return; }
+  setUnlock(true);
+  toast("Recovery code accepted — set a new passcode.");
+  await setPin();
+}
 
 function renderProject(){
   const p = state.project, ro = state.settings.role!=="builder";
@@ -904,7 +939,7 @@ const openIds = new Set();
 function toggle(id){ openIds.has(id)?openIds.delete(id):openIds.add(id); renderRegister(); }
 async function setRole(r){
   if(r==="builder" && !canBuild()){
-    const pin=await uiPrompt({title:"Builder passcode",message:"Enter the passcode to unlock editing on this device.",placeholder:"Passcode",password:true,confirmLabel:"Unlock"});
+    const pin=await uiPrompt({title:"Builder passcode",message:"Enter the passcode to unlock editing on this device. Forgot it? Open Share & sync → Builder access → Forgot passcode.",placeholder:"Passcode",password:true,confirmLabel:"Unlock"});
     if(pin===null) return;
     if(!await verifyPin(pin)){ toast("Incorrect passcode."); return; }
     setUnlock(true);
@@ -1201,6 +1236,7 @@ function renderPinControls(){
     host.innerHTML =
       `<span class="lock-ind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Passcode set${locked?" · locked on this device":" · unlocked here"}</span>`+
       `<button class="btn" onclick="changePin()">Change passcode</button>`+
+      `<button class="btn ghost" onclick="resetWithRecovery()">Forgot passcode?</button>`+
       `<button class="btn ghost" style="color:var(--bad)" onclick="removePin()">Remove passcode</button>`;
   }
 }
