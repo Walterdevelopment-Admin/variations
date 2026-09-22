@@ -420,8 +420,10 @@ body[data-role="builder"] .owner-only-note{display:none}
 <script>
 "use strict";
 /* ============================================================
-   WDD Variation Register — self-contained tracker
-   State persists in this browser (localStorage).
+   WDD Variation Register
+   Data lives in a JSON file in the GitHub repo (per project).
+   Anyone with the link reads it; a builder token is needed to edit.
+   localStorage is used only as an offline cache for instant paint.
    ============================================================ */
 const KEY_BASE = "wdd_vo_register_v1";
 const PROJ_INDEX = "wdd_vo_projects";
@@ -433,7 +435,7 @@ function getProjectId(){
 const projectId = getProjectId();
 const KEY = KEY_BASE + (projectId ? ("::"+projectId) : "");
 const DRAFT_KEY = KEY + "::draft";
-function projectLink(id){ return location.origin + location.pathname + "?p=" + id; }
+function projectLink(id){ return location.origin + location.pathname + "?p=" + (id||""); }
 function newToken(){
   const a="ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; let s="";
   let arr=null; try{ arr=crypto.getRandomValues(new Uint32Array(10)); }catch(e){}
@@ -442,6 +444,101 @@ function newToken(){
 }
 function loadIndex(){ try{ return JSON.parse(localStorage.getItem(PROJ_INDEX)||"{}"); }catch(e){ return {}; } }
 function saveIndex(x){ try{ localStorage.setItem(PROJ_INDEX, JSON.stringify(x)); }catch(e){} }
+
+/* ---------- GitHub sync (data store) ---------- */
+const GH_REPO = "Walterdevelopment-Admin/variations";
+const GH_TOKEN_KEY = "wdd_vo_gh_token";
+const DATA_DIR = "data";
+const IDX_PATH = DATA_DIR + "/_index.json";
+function dataPath(id){ return DATA_DIR + "/" + (id || "default") + ".json"; }
+function ghUrl(path){ return "https://api.github.com/repos/" + GH_REPO + "/contents/" + path; }
+let GH_TOKEN=null; try{ GH_TOKEN=localStorage.getItem(GH_TOKEN_KEY)||null; }catch(e){}
+let tokenBad=false, previewOwner=false;
+const shaMap={};
+function canWrite(){ return !!GH_TOKEN && !tokenBad; }
+function ghHeaders(extra){ const h={"Accept":"application/vnd.github+json"}; if(GH_TOKEN&&!tokenBad){ h["Authorization"]="token "+GH_TOKEN; } if(extra){ for(const k in extra) h[k]=extra[k]; } return h; }
+function b64enc(str){ const bytes=new TextEncoder().encode(str); let bin=""; bytes.forEach(b=>bin+=String.fromCharCode(b)); return btoa(bin); }
+function b64dec(str){ const bin=atob(String(str).replace(/\s/g,"")); const b=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) b[i]=bin.charCodeAt(i); return new TextDecoder("utf-8").decode(b); }
+function setSync(t){ const el=document.getElementById("syncStatus"); if(el) el.textContent=t; }
+function updateSyncBadge(){ if(canWrite()) setSync("Synced"); else if(tokenBad) setSync("Reconnect needed"); else setSync("Read-only"); }
+async function ghGet(path){
+  const h={"Accept":"application/vnd.github+json"};
+  if(GH_TOKEN&&!tokenBad) h["Authorization"]="token "+GH_TOKEN;
+  let r; try{ r=await fetch(ghUrl(path)+"?t="+Date.now(),{headers:h}); }catch(e){ return {error:"net"}; }
+  if(r.status===401){ tokenBad=true; updateSyncBadge(); return {error:"auth"}; }
+  if(r.status===403){ return {error:"rate"}; }
+  if(r.status===404){ shaMap[path]=null; return null; }
+  if(!r.ok) return {error:"http"+r.status};
+  let d; try{ d=await r.json(); }catch(e){ return {error:"parse"}; }
+  if(d&&d.content){ shaMap[path]=d.sha; let obj=null; try{ obj=JSON.parse(b64dec(d.content)); }catch(e){} return {obj,sha:d.sha}; }
+  return null;
+}
+async function ghPut(path,obj,message,isRetry){
+  if(!canWrite()) return false;
+  setSync("Saving…");
+  const body={ message:message||"Update", content:b64enc(JSON.stringify(obj,null,2)) };
+  if(shaMap[path]) body.sha=shaMap[path];
+  let r; try{ r=await fetch(ghUrl(path),{method:"PUT",headers:ghHeaders({"Content-Type":"application/json"}),body:JSON.stringify(body)}); }catch(e){ setSync("Save failed — retries next change"); return false; }
+  if(r.status===401){ tokenBad=true; updateSyncBadge(); return false; }
+  if((r.status===409||r.status===422)&&!isRetry){ await ghGet(path); return await ghPut(path,obj,message,true); }
+  if(!r.ok){ setSync("Save failed — retries next change"); return false; }
+  try{ const d=await r.json(); if(d&&d.content&&d.content.sha) shaMap[path]=d.content.sha; }catch(e){}
+  setSync("Synced"); return true;
+}
+async function ghDelete(path,message){
+  if(!canWrite()) return false;
+  if(shaMap[path]==null){ await ghGet(path); }
+  if(!shaMap[path]) return false;
+  let r; try{ r=await fetch(ghUrl(path),{method:"DELETE",headers:ghHeaders({"Content-Type":"application/json"}),body:JSON.stringify({message:message||"Delete",sha:shaMap[path]})}); }catch(e){ return false; }
+  if(r.ok){ shaMap[path]=null; return true; }
+  return false;
+}
+async function fetchIndexRemote(){ const res=await ghGet(IDX_PATH); if(res&&res.obj&&res.obj.projects) return res.obj.projects; return null; }
+async function addToIndex(id,name){ let p=(await fetchIndexRemote())||loadIndex(); p[id]={name:name||"Untitled",created:todayISO()}; await ghPut(IDX_PATH,{projects:p},"Update project index"); saveIndex(p); }
+async function removeFromIndex(id){ let p=(await fetchIndexRemote())||loadIndex(); delete p[id]; await ghPut(IDX_PATH,{projects:p},"Remove project "+id); saveIndex(p); }
+
+/* pull the authoritative copy from GitHub and apply it */
+let lastRemoteJSON=null, pendingRemote=null;
+function modalOrFormOpen(){ return !!document.getElementById("modalRoot").innerHTML || dialogOpen() || formOpen; }
+function applyRemote(obj){
+  state.project = Object.assign({}, state.project, obj.project||{});
+  state.variations = Array.isArray(obj.variations) ? obj.variations : [];
+  lastRemoteJSON = JSON.stringify({project:state.project, variations:state.variations});
+  try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
+  render();
+}
+async function syncPull(){
+  const res=await ghGet(dataPath(projectId));
+  updateSyncBadge();
+  if(!res || res.error){ return; }
+  const obj=res.obj; if(!obj) return;
+  const js=JSON.stringify({project:obj.project||{}, variations:obj.variations||[]});
+  if(js===lastRemoteJSON) return;
+  if(modalOrFormOpen()){ pendingRemote=obj; return; }
+  applyRemote(obj);
+}
+let _pushT=null;
+function syncPush(){
+  if(!canWrite()) return;
+  clearTimeout(_pushT);
+  _pushT=setTimeout(async ()=>{
+    const payload={ project:state.project, variations:state.variations, updatedAt:new Date().toISOString() };
+    const ok=await ghPut(dataPath(projectId), payload, "Update variation register"+(projectId?(" ["+projectId+"]"):""));
+    if(ok) lastRemoteJSON=JSON.stringify({project:state.project, variations:state.variations});
+  }, 700);
+}
+let pollTick=0;
+function startPoll(){ setInterval(()=>{ pollTick++; if(!canWrite() && (pollTick%15!==0)) return; syncPull(); }, 20000); }
+async function openToken(){
+  const t=await uiPrompt({title:"Connect as builder", message:"Paste your GitHub access token to edit this register and sync changes to everyone. It is stored only in this browser and never shared. Leave blank to disconnect.", placeholder:"github_pat_… or ghp_…", password:true, confirmLabel:"Connect"});
+  if(t===null) return;
+  const v=t.trim();
+  try{ if(v) localStorage.setItem(GH_TOKEN_KEY,v); else localStorage.removeItem(GH_TOKEN_KEY); }catch(e){}
+  GH_TOKEN=v||null; tokenBad=false; previewOwner=false;
+  await syncPull(); render(); updateSyncBadge();
+  toast(GH_TOKEN?"Connected — your changes now sync to everyone with the link.":"Disconnected — this device is read-only.");
+}
+
 const GST = 0.10;
 const fmt = new Intl.NumberFormat("en-AU",{style:"currency",currency:"AUD",minimumFractionDigits:2});
 const money = n => (n<0? "−"+fmt.format(Math.abs(n)) : fmt.format(n));
@@ -463,39 +560,9 @@ const EOT_CAUSES = ["Material / procurement lead time","Drawing / design amendme
 /* ---------- seed (clearly-marked examples) ---------- */
 function seed(){
   return {
-    project:{ owners:"", site:"", projectNo:"P2026-0000", contractDate:"", preparedBy:"Walter Design & Development Pty Ltd" },
-    settings:{ role:"builder", theme:"", builderPin:null },
-    variations:[
-      { id:"ex1", no:"VO-001", example:true, title:"Upgrade to 900mm freestanding oven & rangehood",
-        desc:"Owner-requested upgrade from the standard 600mm appliance package to a 900mm freestanding oven and matching canopy rangehood, including revised cabinetry opening and additional gas/electrical provision.",
-        ref:"Kitchen selection sheet Rev B · Quote WDD-Q-118", requestedBy:"owner", nature:"changed",
-        dateRequested:"2026-08-18", dateIssued:"2026-08-20",
-        lineItems:[{desc:"Appliance upgrade supply & install",ref:"WDD-Q-118",amount:980},{desc:"Cabinetry opening & benchtop adjustment",ref:"",amount:420}],
-        charges:{admin:0,design:0,restocking:0,other:0},
-        eotDays:0, eotCauses:[], payment:"next", paymentDue:"",
-        status:"approved",
-        sign:{owner1:"J. & K. Mercer",date1:"2026-08-21",owner2:"",date2:"",builderName:"D. Walter",builderDate:"2026-08-21",signedAt:"2026-08-21T09:14:00"},
-        note:"" },
-      { id:"ex2", no:"VO-002", example:true, title:"Slab redesign for reactive (Class H1) soil",
-        desc:"Following the geotechnical report, the structural engineer amended the raft slab design to suit reactive Class H1 soil. Additional concrete, reinforcement and beam depth required. Statutory / engineering-driven change.",
-        ref:"Engineer detail S-02 Rev C · Geotech report GR-2261", requestedBy:"authority", nature:"changed",
-        dateRequested:"2026-08-29", dateIssued:"2026-09-01",
-        lineItems:[{desc:"Additional concrete & reinforcement to raft slab",ref:"S-02 Rev C",amount:3150}],
-        charges:{admin:150,design:550,restocking:0,other:0},
-        eotDays:5, eotCauses:["Drawing / design amendment","Approvals / certification"], payment:"next", paymentDue:"",
-        status:"approved",
-        sign:{owner1:"J. & K. Mercer",date1:"2026-09-03",owner2:"",date2:"",builderName:"D. Walter",builderDate:"2026-09-02",signedAt:"2026-09-03T16:40:00"},
-        note:"" },
-      { id:"ex3", no:"VO-003", example:true, title:"Omit rear-yard landscaping (Owner to arrange)",
-        desc:"Owner has elected to arrange rear-yard soft & hard landscaping directly with their own contractor after handover. This scope is omitted from the contract works as a credit.",
-        ref:"Landscape plan L-01 (deleted scope)", requestedBy:"owner", nature:"omitted",
-        dateRequested:"2026-09-08", dateIssued:"2026-09-09",
-        lineItems:[{desc:"Credit — omit rear-yard landscaping scope",ref:"L-01",amount:-3000}],
-        charges:{admin:0,design:0,restocking:0,other:0},
-        eotDays:0, eotCauses:[], payment:"next", paymentDue:"",
-        status:"issued",
-        sign:null, note:"" }
-    ]
+    project:{ owners:"", site:"", projectNo:"", contractDate:"", preparedBy:"Walter Design & Development Pty Ltd" },
+    settings:{ role:"owner", theme:"" },
+    variations:[]
   };
 }
 
@@ -528,11 +595,12 @@ function statusMeta(s){
 
 /* ============================================================ RENDER */
 function render(){
-  // enforce the builder lock: an owner device can never sit in builder mode
-  if(state.settings.role==="builder" && !canBuild()) state.settings.role="owner";
+  // the builder is whoever holds the GitHub token; everyone else is read-only
+  state.settings.role = (canWrite() && !previewOwner) ? "builder" : "owner";
   document.body.dataset.role = state.settings.role;
-  document.getElementById("roleBuilder").setAttribute("aria-pressed", state.settings.role==="builder");
-  document.getElementById("roleOwner").setAttribute("aria-pressed", state.settings.role==="owner");
+  const rb=document.getElementById("roleBuilder"), ro=document.getElementById("roleOwner");
+  if(rb) rb.setAttribute("aria-pressed", state.settings.role==="builder");
+  if(ro) ro.setAttribute("aria-pressed", state.settings.role==="owner");
   renderLockbar(); renderProject(); renderStats(); renderFilters(); renderRegister(); renderProjChip();
   save();
 }
@@ -561,21 +629,26 @@ async function verifyPin(pin){ return (await sha(pin))===state.settings.builderP
 
 function renderLockbar(){
   const host=document.getElementById("lockbar"); if(!host) return;
-  const lockSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
-  const openSvg='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 7.5-2"/></svg>';
-  if(state.settings.role!=="builder"){
-    host.className="lockbar owner"; host.hidden=false;
-    host.innerHTML=`${lockSvg}<span class="lb-txt">You're in <b>Owner view</b> — review each variation and sign it off. Editing is reserved for the builder.</span>`;
-    return;
-  }
-  if(!hasPin()){
-    host.className="lockbar open"; host.hidden=false;
-    host.innerHTML=`${openSvg}<span class="lb-txt"><b>Editing is open to anyone with this link.</b> Set a passcode so only you can add or change variations — the owner will still be able to review and sign.</span>
-      <button class="btn" onclick="setPin()">Set passcode</button>`;
+  const cloud='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19a4.5 4.5 0 0 0 .5-9 6 6 0 0 0-11.6-1.5A4 4 0 0 0 6 19Z"/><path d="M9 13l2 2 4-4"/></svg>';
+  const eye='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  const warn='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>';
+  host.hidden=false;
+  if(tokenBad){
+    host.className="lockbar warn";
+    host.innerHTML=`${warn}<span class="lb-txt"><b>Your builder token has expired or was revoked.</b> Reconnect to keep editing — <span id="syncStatus">Reconnect needed</span>.</span><button class="btn" onclick="openToken()">Reconnect</button>`;
+  }else if(canWrite() && !previewOwner){
+    host.className="lockbar locked";
+    host.innerHTML=`${cloud}<span class="lb-txt"><b>Builder — connected & syncing to GitHub</b> (<span id="syncStatus">Synced</span>). Your changes save automatically and everyone with the link sees them.</span>
+      <button class="btn ghost" onclick="previewOwner=true;render();">Preview owner view</button>
+      <button class="btn ghost" onclick="openToken()">Disconnect</button>`;
+  }else if(canWrite() && previewOwner){
+    host.className="lockbar owner";
+    host.innerHTML=`${eye}<span class="lb-txt">Previewing the <b>owner's</b> read-only view. This is what a client sees.</span>
+      <button class="btn" onclick="previewOwner=false;render();">Back to builder</button>`;
   }else{
-    host.className="lockbar locked"; host.hidden=false;
-    host.innerHTML=`${lockSvg}<span class="lb-txt"><b>Editing is unlocked on this device.</b> The owner opens the same link in Owner view and cannot switch here without the passcode.</span>
-      <button class="btn" onclick="lockThisDevice()">Lock this device</button>`;
+    host.className="lockbar owner";
+    host.innerHTML=`${eye}<span class="lb-txt"><b>Read-only view</b> (<span id="syncStatus">Read-only</span>) — this register updates automatically whenever the builder makes a change. Review each variation and sign it off below.</span>
+      <button class="btn ghost" onclick="openToken()" title="Builder access">I'm the builder</button>`;
   }
 }
 async function setPin(){
@@ -941,17 +1014,11 @@ function initSigPads(){
 const openIds = new Set();
 function toggle(id){ openIds.has(id)?openIds.delete(id):openIds.add(id); renderRegister(); }
 async function setRole(r){
-  if(r==="builder" && !canBuild()){
-    const pin=await uiPrompt({title:"Builder passcode",message:"Enter the passcode to unlock editing on this device. Forgot it? Open Share & sync → Builder access → Forgot passcode.",placeholder:"Passcode",password:true,confirmLabel:"Unlock"});
-    if(pin===null) return;
-    if(!await verifyPin(pin)){ toast("Incorrect passcode."); return; }
-    setUnlock(true);
-  }
-  state.settings.role=r; render();
-  toast(r==="owner"?"Owner view — review & sign each variation":"Builder view — full editing enabled");
+  if(r==="builder"){ if(canWrite()){ previewOwner=false; render(); } else { openToken(); } return; }
+  previewOwner=true; render();
 }
 function setFilter(f){ activeFilter=f; renderFilters(); renderRegister(); }
-function setProject(k,val){ state.project[k]=val; save(); }
+function setProject(k,val){ state.project[k]=val; save(); syncPush(); }
 
 function vo(id){ return state.variations.find(v=>v.id===id); }
 function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2600); }
@@ -970,21 +1037,22 @@ function signVo(id){
   if(n2 && !sig2){ toast("Add Owner 2's signature, or clear the Owner 2 name."); return; }
   v.sign = { owner1:n1, date1:d, sig1, owner2:n2, date2:n2?d:"", sig2, builderName:v.sign?.builderName||"", builderDate:v.sign?.builderDate||"", signedAt:new Date().toISOString() };
   v.status = "approved"; v.example = false; v.note="";
-  render(); toast("Approved. You can now print or save a PDF of this approval.");
+  render(); syncPush();
+  toast(canWrite() ? "Approved and synced." : "Approved — now use “Print / save this approval” to send it back to the builder.");
 }
 async function unsign(id){ const v=vo(id); if(!v)return;
   const ok=await uiConfirm({title:"Withdraw approval",message:"Withdraw the recorded approval for "+v.no+"? It will return to 'awaiting owner approval'.",confirmLabel:"Withdraw",danger:true});
-  if(!ok)return; v.sign=null; v.status="issued"; render(); toast("Approval withdrawn."); }
+  if(!ok)return; v.sign=null; v.status="issued"; render(); syncPush(); toast("Approval withdrawn."); }
 async function requestChanges(id){
   const v=vo(id); if(!v)return;
   const note = await uiPrompt({title:"Request changes",message:"What would you like the builder to change about "+v.no+"? This sends it back to them.",placeholder:"Describe the change requested",multiline:true,confirmLabel:"Send back"});
   if(note===null) return;
-  v.status="changes"; v.note=note; v.sign=null; render(); toast("Sent back to the builder as 'changes requested'.");
+  v.status="changes"; v.note=note; v.sign=null; render(); syncPush(); toast("Sent back to the builder as 'changes requested'.");
 }
-function setStatus(id,s){ const v=vo(id); if(!v)return; v.status=s; if(s!=="approved"){v.sign=null;} render(); toast("Status updated."); }
+function setStatus(id,s){ const v=vo(id); if(!v)return; v.status=s; if(s!=="approved"){v.sign=null;} render(); syncPush(); toast("Status updated."); }
 async function removeVo(id){ const v=vo(id); if(!v)return;
   const ok=await uiConfirm({title:"Delete variation",message:"Delete "+v.no+(v.title?" — "+v.title:"")+"? This can't be undone.",confirmLabel:"Delete",danger:true});
-  if(!ok)return; state.variations=state.variations.filter(x=>x.id!==id); openIds.delete(id); render(); toast("Variation deleted."); }
+  if(!ok)return; state.variations=state.variations.filter(x=>x.id!==id); openIds.delete(id); render(); syncPush(); toast("Variation deleted."); }
 
 /* ---------- print ---------- */
 function printRegister(){ document.body.classList.remove("print-one"); state.variations.forEach(v=>openIds.add(v.id)); renderRegister(); setTimeout(()=>window.print(),60); }
@@ -1109,9 +1177,13 @@ function saveForm(){
   ["admin","design","restocking","other"].forEach(k=>formVo.charges[k]=+formVo.charges[k]||0);
   const idx = state.variations.findIndex(v=>v.id===formVo.id);
   if(idx>=0) state.variations[idx]=formVo; else state.variations.push(formVo);
-  openIds.add(formVo.id); closeModal(); render(); toast(idx>=0?"Variation updated.":"Variation added.");
+  openIds.add(formVo.id); closeModal(); render(); syncPush(); toast(idx>=0?"Variation updated.":"Variation added.");
 }
-function closeModal(){ if(formOpen){ formOpen=false; clearDraft(); } document.getElementById("modalRoot").innerHTML=""; }
+function closeModal(){
+  if(formOpen){ formOpen=false; clearDraft(); }
+  document.getElementById("modalRoot").innerHTML="";
+  if(pendingRemote && !dialogOpen()){ const p=pendingRemote; pendingRemote=null; applyRemote(p); }
+}
 
 /* ---------- in-page dialogs (sandboxed iframes block native prompt/confirm) ---------- */
 function uiPrompt(o){
@@ -1161,129 +1233,120 @@ function uiConfirm(o){
 function dialogOpen(){ return !!document.getElementById("dialogRoot").innerHTML; }
 
 /* ---------- projects (unique link per building) ---------- */
+function renderPinControls(){}   /* retired: builder access is now token-based */
 function copyText(t){ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(()=>toast("Link copied"),()=>toast("Select the link and copy it")); } else { toast("Select the link and copy it"); } }
 async function newProject(){
-  const name=await uiPrompt({title:"New project",message:"Name this building or owner (e.g. the owner's name or site address). This starts a fresh register with its own unique link.",placeholder:"e.g. Mercer — 42 Oak Street",confirmLabel:"Create link"});
+  if(!canWrite()){ toast("Connect as builder first (top bar) to create a project."); return; }
+  const name=await uiPrompt({title:"New project",message:"Name this building or owner (e.g. the owner's name or site address). This creates a fresh register with its own unique link, saved to GitHub.",placeholder:"e.g. Mercer — 42 Oak Street",confirmLabel:"Create link"});
   if(name===null) return;
   const id=newToken();
-  const st={ project:{owners:(name||""),site:"",projectNo:"",contractDate:"",preparedBy:"Walter Design & Development Pty Ltd"},
-    settings:{role:"builder", theme:(state.settings.theme||""), builderPin:(state.settings.builderPin||null)},
-    variations:[] };
-  try{ localStorage.setItem(KEY_BASE+"::"+id, JSON.stringify(st)); }catch(e){}
-  const idx=loadIndex(); idx[id]={name:(name||"Untitled"), created:todayISO()}; saveIndex(idx);
+  setSync("Creating…");
+  const obj={ project:{owners:(name||""),site:"",projectNo:"",contractDate:"",preparedBy:"Walter Design & Development Pty Ltd"}, variations:[], updatedAt:new Date().toISOString() };
+  shaMap[dataPath(id)]=null;
+  const ok=await ghPut(dataPath(id), obj, "Create project "+(name||id));
+  if(!ok){ toast("Couldn't create the project — check your connection and token."); return; }
+  await addToIndex(id, name||"Untitled");
   location.href = projectLink(id);
 }
-function openProjects(){
-  const isBuilder = state.settings.role==="builder" && canBuild();
-  const idx=loadIndex();
-  const entries=Object.entries(idx).sort((a,b)=>String(b[1].created||"").localeCompare(String(a[1].created||"")));
-  const curInfo = projectId ? (idx[projectId]||{name:(state.project.owners||"This project")}) : null;
+async function openProjects(){
+  const isBuilder = canWrite();
+  let projects = {};
+  if(isBuilder){ projects = (await fetchIndexRemote()) || loadIndex(); saveIndex(projects); }
+  const entries=Object.entries(projects).sort((a,b)=>String(b[1].created||"").localeCompare(String(a[1].created||"")));
+  const curLink = projectId ? projectLink(projectId) : "";
+  const curName = (projectId && projects[projectId] && projects[projectId].name) || state.project.owners || state.project.site || "This project";
   const curBlock = projectId
     ? `<fieldset><legend>This project's link</legend>
-        <div class="proj-name" style="margin-bottom:4px">${esc(curInfo.name||"This project")}</div>
-        <div class="proj-link mono">${esc(projectLink(projectId))}</div>
-        <div style="display:flex;gap:10px;margin-top:10px"><button class="btn" onclick="copyText('${esc(projectLink(projectId))}')">Copy this link</button></div>
+        <div class="proj-name" style="margin-bottom:4px">${esc(curName)}</div>
+        <div class="proj-link mono">${esc(curLink)}</div>
+        <div style="display:flex;gap:10px;margin-top:10px"><button class="btn" onclick="copyText('${esc(curLink)}')">Copy this link</button></div>
       </fieldset>`
-    : `<fieldset><legend>This link has no project token yet</legend>
-        <p class="help" style="margin:0">You're viewing the default register. Create a project below to get a unique, shareable link for one building.</p></fieldset>`;
+    : `<fieldset><legend>Default register</legend>
+        <p class="help" style="margin:0">You're on the default link.${isBuilder?" Create a project below to get a unique link for one building.":""}</p></fieldset>`;
   const list = entries.length
-    ? entries.map(([id,info])=>{
-        const isCur=id===projectId;
+    ? entries.map(([id,info])=>{ const isCur=id===projectId; const link=projectLink(id);
         return `<div class="proj-row">
           <div style="min-width:0"><div class="proj-name">${esc(info.name||"Untitled")} ${isCur?'<span class="cur-tag">current</span>':''}</div>
-            <div class="proj-link mono">${esc(projectLink(id))}</div></div>
+            <div class="proj-link mono">${esc(link)}</div></div>
           <div style="display:flex;gap:8px;flex-shrink:0">
-            <button class="btn ghost" onclick="copyText('${esc(projectLink(id))}')">Copy</button>
-            ${isCur?'':`<button class="btn" onclick="location.href='${esc(projectLink(id))}'">Open</button>`}
-            ${isBuilder?`<button class="btn ghost proj-del" title="Delete this project" aria-label="Delete project ${esc(info.name||'')}" onclick="deleteProject('${id}')">✕</button>`:''}
+            <button class="btn ghost" onclick="copyText('${esc(link)}')">Copy</button>
+            ${isCur?'':`<button class="btn" onclick="location.href='${esc(link)}'">Open</button>`}
+            <button class="btn ghost proj-del" title="Delete this project" onclick="deleteProject('${id}')">✕</button>
           </div></div>`;
       }).join("")
-    : `<p class="help">No projects created on this device yet.</p>`;
+    : `<p class="help">No projects yet — create your first one below.</p>`;
   document.getElementById("modalRoot").innerHTML=`<div class="modal-bg" onclick="if(event.target===this)closeModal()">
     <div class="modal" role="dialog" aria-modal="true">
       <div class="modal-head"><h3>Projects &amp; links</h3><button class="x" onclick="closeModal()">×</button></div>
       <div class="modal-body">
-        <p style="font-size:13.5px;color:var(--muted);margin:0">Each building gets its own link. Send an owner only their link — they'll see just their register.</p>
+        <p style="font-size:13.5px;color:var(--muted);margin:0">Each building has its own link and its own data on GitHub. Send an owner only their link — they see just their register, live.</p>
         ${curBlock}
         ${isBuilder ? `
         <button class="btn primary" onclick="newProject()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg> New project (new link)</button>
-        <fieldset><legend>Projects on this device</legend>
+        <fieldset><legend>All projects</legend>
           <div style="display:flex;flex-direction:column;gap:10px">${list}</div>
-          <p class="help" style="margin:10px 0 0">The ✕ deletes a project from <b>this device</b> and clears its saved data here. This list is stored in this browser only. See <b>Share &amp; sync</b> for moving data between devices.</p>
+          <p class="help" style="margin:10px 0 0">The ✕ permanently deletes that project's data from GitHub for everyone.</p>
         </fieldset>` : `
-        <p class="help">Creating and deleting projects is available in <b>Builder</b> view only.</p>`}
+        <p class="help">Creating and deleting projects is available to the builder — connect at the top.</p>`}
       </div>
       <div class="modal-foot"><button class="btn" onclick="closeModal()">Done</button></div>
     </div></div>`;
 }
 async function deleteProject(id){
-  if(!(state.settings.role==="builder" && canBuild())){ toast("Only the builder can delete projects."); return; }
-  const idx=loadIndex(); const info=idx[id]||{};
-  const ok=await uiConfirm({title:"Delete project",message:"Delete “"+(info.name||"this project")+"” from this device? Its saved variations on this device are removed and can't be recovered. (An owner who already has the link keeps their own copy.)",confirmLabel:"Delete project",danger:true});
+  if(!canWrite()){ toast("Connect as builder to delete projects."); return; }
+  const projects=(await fetchIndexRemote())||loadIndex(); const info=projects[id]||{};
+  const ok=await uiConfirm({title:"Delete project",message:"Delete “"+(info.name||"this project")+"” for everyone? This permanently removes its data from GitHub and can't be undone.",confirmLabel:"Delete project",danger:true});
   if(!ok) return;
+  setSync("Deleting…");
+  await ghDelete(dataPath(id), "Delete project "+id);
+  await removeFromIndex(id);
   try{ localStorage.removeItem(KEY_BASE+"::"+id); }catch(e){}
-  delete idx[id]; saveIndex(idx);
   toast("Project deleted.");
   if(id===projectId){ location.href = location.origin+location.pathname; return; }
   openProjects();
 }
 
-/* ---------- share & sync ---------- */
+/* ---------- share ---------- */
 function openShare(){
-  const data = JSON.stringify(state,null,2);
+  const connected = canWrite();
+  const data = JSON.stringify({project:state.project, variations:state.variations}, null, 2);
   const html = `<div class="modal-bg" onclick="if(event.target===this)closeModal()">
     <div class="modal" role="dialog" aria-modal="true">
       <div class="modal-head"><h3>Share &amp; sync</h3><button class="x" onclick="closeModal()">×</button></div>
       <div class="modal-body">
-        <p style="font-size:13.5px;color:var(--muted);margin:0">This register lives in the page. Each device keeps its own copy, so use the buttons below to move the data between your devices, or to send it to your owner.</p>
+        <p style="font-size:13.5px;color:var(--muted);margin:0">This register is stored on GitHub. Anyone with the link sees the latest version live, on any device.</p>
         <fieldset><legend>Send this project to the Owner</legend>
-          <p style="font-size:13px;color:var(--ink-soft);margin:0 0 8px">Send the Owner <b>this project's link</b> (use <b>Projects</b> to give each building its own link). They open it, review, and sign each variation, then print/save each approval as a PDF to send back.</p>
+          <p style="font-size:13px;color:var(--ink-soft);margin:0 0 8px">Send the Owner <b>this project's link</b> (use <b>Projects</b> for a link per building). They open it and see this register live, review it, and sign each variation. Their signed approval prints to a PDF to send back to you.</p>
           <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn" onclick="copyLink()">Copy this project's link</button><button class="btn ghost builder-only" onclick="closeModal();openProjects()">Manage projects &amp; links</button></div>
         </fieldset>
-        <fieldset><legend>Back up / move to another device</legend>
-          <p class="help" style="margin:0 0 8px">Copy this data, then paste it into the same page on another device and press Load.</p>
-          <textarea class="inp" id="syncBox" style="min-height:120px;font-family:'IBM Plex Mono',monospace;font-size:11px">${esc(data)}</textarea>
+        <fieldset><legend>Builder connection (editing &amp; sync)</legend>
+          <p style="font-size:13px;color:var(--ink-soft);margin:0 0 8px">${connected?"You're <b>connected</b> — your edits save to GitHub and everyone with the link sees them.":"This device is <b>read-only</b>. Connect with your GitHub token to edit and sync."}</p>
+          <div style="display:flex;gap:10px;flex-wrap:wrap"><button class="btn ${connected?'':'primary'}" onclick="closeModal();openToken()">${connected?"Change / disconnect token":"Connect as builder"}</button></div>
+          <p class="help" style="margin:8px 0 0">Your token is stored only in this browser and never shared. Create a fine-grained token on GitHub with read &amp; write access to the <b>Contents</b> of the <b>${esc(GH_REPO)}</b> repository.</p>
+        </fieldset>
+        <fieldset><legend>Export a backup</legend>
+          <p class="help" style="margin:0 0 8px">A copy of this project's data, for your own offline backup.</p>
+          <textarea class="inp" id="syncBox" style="min-height:110px;font-family:'IBM Plex Mono',monospace;font-size:11px" readonly>${esc(data)}</textarea>
           <div style="display:flex;gap:10px;margin-top:10px">
-            <button class="btn" onclick="copySync()">Copy data</button>
-            <button class="btn" onclick="loadSync()">Load pasted data</button>
+            <button class="btn" onclick="copySync()">Copy backup</button>
+            ${connected?'<button class="btn ghost" onclick="loadSync()">Load pasted data</button>':''}
           </div>
-        </fieldset>
-        <fieldset><legend>Builder access (stop owners editing)</legend>
-          <p style="font-size:13px;color:var(--ink-soft);margin:0 0 8px">Set a passcode so only you can add or change variations. The owner opens the same link, lands in <b>Owner view</b>, and can review &amp; sign — but can't switch to editing without the passcode.</p>
-          <div id="pinControls" style="display:flex;gap:10px;flex-wrap:wrap"></div>
-          <p class="help" style="margin:8px 0 0">Note: this is a practical deterrent on a no-login link, not bank-grade security — it travels with the register data you send the owner. For tamper-proof control, ask me for the sign-in-based version.</p>
-        </fieldset>
-        <fieldset><legend>Reset</legend>
-          <button class="btn ghost" style="color:var(--bad)" onclick="clearExamples()">Remove the example variations</button>
         </fieldset>
       </div>
       <div class="modal-foot"><button class="btn" onclick="closeModal()">Done</button></div>
     </div></div>`;
   document.getElementById("modalRoot").innerHTML = html;
-  renderPinControls();
 }
-function renderPinControls(){
-  const host=document.getElementById("pinControls"); if(!host) return;
-  if(!hasPin()){
-    host.innerHTML = `<button class="btn primary" onclick="setPin()">Set builder passcode</button>`;
-  }else{
-    const locked = !isUnlocked();
-    host.innerHTML =
-      `<span class="lock-ind"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>Passcode set${locked?" · locked on this device":" · unlocked here"}</span>`+
-      `<button class="btn" onclick="changePin()">Change passcode</button>`+
-      `<button class="btn ghost" onclick="resetWithRecovery()">Forgot passcode?</button>`+
-      `<button class="btn ghost" style="color:var(--bad)" onclick="removePin()">Remove passcode</button>`;
-  }
-}
-function copyLink(){ const u=location.href; navigator.clipboard?.writeText(u).then(()=>toast("Link copied"),()=>toast("Copy the link from your browser bar")); }
-function copySync(){ const b=document.getElementById("syncBox"); b.select(); navigator.clipboard?.writeText(b.value).then(()=>toast("Register data copied"),()=>{document.execCommand&&document.execCommand("copy");toast("Copied");}); }
+function copyLink(){ copyText(projectId?projectLink(projectId):location.href); }
+function copySync(){ const b=document.getElementById("syncBox"); if(!b)return; b.removeAttribute("readonly"); b.select(); navigator.clipboard?.writeText(b.value).then(()=>toast("Backup copied"),()=>{try{document.execCommand("copy");}catch(e){}toast("Copied");}); b.setAttribute("readonly","readonly"); }
 function loadSync(){
+  if(!canWrite()){ toast("Connect as builder to load data."); return; }
   try{ const obj=JSON.parse(document.getElementById("syncBox").value);
-    if(!obj.variations) throw 0; state=obj; if(!state.settings)state.settings={role:"builder",theme:"",builderPin:null};
-    closeModal(); applyTheme(); render(); toast("Register loaded.");
+    if(!obj || !Array.isArray(obj.variations)) throw 0;
+    state.project = obj.project || state.project; state.variations = obj.variations;
+    closeModal(); render(); syncPush(); toast("Data loaded and synced.");
   }catch(e){ toast("That doesn't look like valid register data."); }
 }
-function clearExamples(){ state.variations=state.variations.filter(v=>!v.example); closeModal(); render(); toast("Examples removed."); }
 
 /* ---------- theme ---------- */
 function applyTheme(){ const t=state.settings.theme; if(t) document.documentElement.setAttribute("data-theme",t); else document.documentElement.removeAttribute("data-theme"); }
@@ -1299,7 +1362,9 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !dialogOpen()) c
 /* ---------- boot ---------- */
 applyTheme();
 render();
-checkDraft();
+updateSyncBadge();
+syncPull().then(()=>{ updateSyncBadge(); checkDraft(); });
+startPoll();
 </script>
 
 </body>
