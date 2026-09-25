@@ -33,12 +33,12 @@
       ],
       "payment": "next",
       "paymentDue": "",
-      "status": "draft",
+      "status": "issued",
       "sign": null,
       "note": "",
       "example": false,
       "amount": 13128
     }
   ],
-  "updatedAt": "2026-09-25T05:48:02.809Z"
+  "updatedAt": "2026-09-25T05:48:07.183Z"
 }
