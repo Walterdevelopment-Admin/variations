@@ -17,13 +17,6 @@
       "nature": "added",
       "dateRequested": "2026-09-25",
       "dateIssued": "2026-09-25",
-      "lineItems": [
-        {
-          "desc": "",
-          "ref": "",
-          "amount": 11934.55
-        }
-      ],
       "charges": {
         "admin": 0,
         "design": 0,
@@ -43,8 +36,9 @@
       "status": "draft",
       "sign": null,
       "note": "",
-      "example": false
+      "example": false,
+      "amount": 13128
     }
   ],
-  "updatedAt": "2026-09-25T04:13:20.183Z"
+  "updatedAt": "2026-09-25T05:47:37.477Z"
 }
