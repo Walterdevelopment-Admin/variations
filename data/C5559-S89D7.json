@@ -23,7 +23,7 @@
         "restocking": 0,
         "other": 0
       },
-      "eotDays": 0,
+      "eotDays": 21,
       "eotCauses": [
         "Drawing / design amendment",
         "Approvals / certification",
@@ -40,5 +40,5 @@
       "amount": 13128
     }
   ],
-  "updatedAt": "2026-09-25T05:47:37.477Z"
+  "updatedAt": "2026-09-25T05:48:02.809Z"
 }
