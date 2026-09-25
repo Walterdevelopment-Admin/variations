@@ -495,7 +495,9 @@ async function ghDelete(path,message){
   return false;
 }
 async function fetchIndexRemote(){ const res=await ghGet(IDX_PATH); if(res&&res.obj&&res.obj.projects) return res.obj.projects; return null; }
-async function addToIndex(id,name){ let p=(await fetchIndexRemote())||loadIndex(); p[id]={name:name||"Untitled",created:todayISO()}; await ghPut(IDX_PATH,{projects:p},"Update project index"); saveIndex(p); }
+async function upsertIndex(id,entry){ let p=(await fetchIndexRemote())||loadIndex(); p[id]=Object.assign({created:todayISO()}, p[id]||{}, entry||{}); await ghPut(IDX_PATH,{projects:p},"Update project index"); saveIndex(p); }
+let _idxT=null;
+function scheduleIndexUpdate(){ if(!canWrite()||!projectId) return; clearTimeout(_idxT); _idxT=setTimeout(()=>{ upsertIndex(projectId,{name:state.project.owners||"", projectNo:state.project.projectNo||"", site:state.project.site||""}); }, 900); }
 async function removeFromIndex(id){ let p=(await fetchIndexRemote())||loadIndex(); delete p[id]; await ghPut(IDX_PATH,{projects:p},"Remove project "+id); saveIndex(p); }
 
 /* pull the authoritative copy from GitHub and apply it */
@@ -549,7 +551,7 @@ async function afterConnect(){
   const ok=await ghPut(dataPath(projectId), {project:state.project, variations:state.variations, updatedAt:new Date().toISOString()}, "Publish register"+(projectId?(" ["+projectId+"]"):""));
   if(ok){
     lastRemoteJSON=JSON.stringify({project:state.project, variations:state.variations});
-    if(projectId){ try{ await addToIndex(projectId, state.project.owners||state.project.site||"Untitled"); }catch(e){} }
+    if(projectId){ try{ await upsertIndex(projectId, {name:state.project.owners||"", projectNo:state.project.projectNo||"", site:state.project.site||""}); }catch(e){} }
     updateSyncBadge(); render(); toast("Connected — this register is now published to GitHub and will sync to everyone with the link.");
   } else {
     updateSyncBadge(); render();
@@ -560,7 +562,7 @@ function publishNow(){
   if(!canWrite()){ toast("Connect as builder first."); return; }
   clearTimeout(_pushT);
   ghPut(dataPath(projectId), {project:state.project, variations:state.variations, updatedAt:new Date().toISOString()}, "Publish register"+(projectId?(" ["+projectId+"]"):"")).then(async ok=>{
-    if(ok){ lastRemoteJSON=JSON.stringify({project:state.project, variations:state.variations}); if(projectId){ try{ await addToIndex(projectId, state.project.owners||state.project.site||"Untitled"); }catch(e){} } toast("Published to GitHub — everyone with the link now sees this."); }
+    if(ok){ lastRemoteJSON=JSON.stringify({project:state.project, variations:state.variations}); if(projectId){ try{ await upsertIndex(projectId, {name:state.project.owners||"", projectNo:state.project.projectNo||"", site:state.project.site||""}); }catch(e){} } toast("Published to GitHub — everyone with the link now sees this."); }
     else { toast("Publish failed — your token needs Contents: Read and write."); }
   });
 }
@@ -601,7 +603,9 @@ function load(){
 function save(){
   try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
   if(projectId){ const idx=loadIndex(); const info=idx[projectId]||{created:todayISO()};
-    info.name = state.project.owners || state.project.site || info.name || "Untitled";
+    info.name = state.project.owners || info.name || "";
+    info.projectNo = state.project.projectNo || info.projectNo || "";
+    info.site = state.project.site || info.site || "";
     idx[projectId]=info; saveIndex(idx); }
 }
 
@@ -633,7 +637,7 @@ function render(){
 function renderProjChip(){
   const el=document.getElementById("projChip"); if(!el) return;
   if(projectId){
-    const nm = state.project.owners || state.project.site || "Project";
+    const nm = state.project.projectNo || state.project.owners || state.project.site || "Project";
     el.hidden=false;
     el.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 21h18M6 21V7l6-4 6 4v14M10 12h4M10 16h4"/></svg><span>${esc(nm)}</span><span class="pc-id mono">${esc(projectId)}</span>`;
   } else { el.hidden=true; }
@@ -1045,7 +1049,7 @@ async function setRole(r){
   previewOwner=true; render();
 }
 function setFilter(f){ activeFilter=f; renderFilters(); renderRegister(); }
-function setProject(k,val){ state.project[k]=val; save(); syncPush(); }
+function setProject(k,val){ state.project[k]=val; save(); syncPush(); if(k==="projectNo"||k==="owners"||k==="site") scheduleIndexUpdate(); }
 
 function vo(id){ return state.variations.find(v=>v.id===id); }
 function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2600); }
@@ -1264,15 +1268,15 @@ function renderPinControls(){}   /* retired: builder access is now token-based *
 function copyText(t){ if(navigator.clipboard){ navigator.clipboard.writeText(t).then(()=>toast("Link copied"),()=>toast("Select the link and copy it")); } else { toast("Select the link and copy it"); } }
 async function newProject(){
   if(!canWrite()){ toast("Connect as builder first (top bar) to create a project."); return; }
-  const name=await uiPrompt({title:"New project",message:"Name this building or owner (e.g. the owner's name or site address). This creates a fresh register with its own unique link, saved to GitHub.",placeholder:"e.g. Mercer — 42 Oak Street",confirmLabel:"Create link"});
-  if(name===null) return;
+  const num=await uiPrompt({title:"New project",message:"Enter the project / contract number for this build (e.g. P2026-0012). This creates a fresh register with its own unique link, saved to GitHub. You can add the owner's name inside the register afterwards.",placeholder:"e.g. P2026-0012",confirmLabel:"Create link"});
+  if(num===null) return;
   const id=newToken();
   setSync("Creating…");
-  const obj={ project:{owners:(name||""),site:"",projectNo:"",contractDate:"",preparedBy:"Walter Design & Development Pty Ltd"}, variations:[], updatedAt:new Date().toISOString() };
+  const obj={ project:{owners:"",site:"",projectNo:(num||""),contractDate:"",preparedBy:"Walter Design & Development Pty Ltd"}, variations:[], updatedAt:new Date().toISOString() };
   shaMap[dataPath(id)]=null;
-  const ok=await ghPut(dataPath(id), obj, "Create project "+(name||id));
+  const ok=await ghPut(dataPath(id), obj, "Create project "+(num||id));
   if(!ok){ toast("Couldn't create the project — check your connection and token."); return; }
-  await addToIndex(id, name||"Untitled");
+  await upsertIndex(id, {projectNo:(num||""), name:""});
   location.href = projectLink(id);
 }
 async function openProjects(){
@@ -1281,7 +1285,8 @@ async function openProjects(){
   if(isBuilder){ projects = (await fetchIndexRemote()) || loadIndex(); saveIndex(projects); }
   const entries=Object.entries(projects).sort((a,b)=>String(b[1].created||"").localeCompare(String(a[1].created||"")));
   const curLink = projectId ? projectLink(projectId) : "";
-  const curName = (projectId && projects[projectId] && projects[projectId].name) || state.project.owners || state.project.site || "This project";
+  const ci = (projectId && projects[projectId]) || {};
+  const curName = state.project.projectNo || ci.projectNo || state.project.owners || ci.name || "This project";
   const curBlock = projectId
     ? `<fieldset><legend>This project's link</legend>
         <div class="proj-name" style="margin-bottom:4px">${esc(curName)}</div>
@@ -1292,8 +1297,11 @@ async function openProjects(){
         <p class="help" style="margin:0">You're on the default link.${isBuilder?" Create a project below to get a unique link for one building.":""}</p></fieldset>`;
   const list = entries.length
     ? entries.map(([id,info])=>{ const isCur=id===projectId; const link=projectLink(id);
+        const label = info.projectNo || info.name || "Untitled";
+        const sub = info.projectNo ? (info.name||"") : "";
         return `<div class="proj-row">
-          <div style="min-width:0"><div class="proj-name">${esc(info.name||"Untitled")} ${isCur?'<span class="cur-tag">current</span>':''}</div>
+          <div style="min-width:0"><div class="proj-name">${esc(label)} ${isCur?'<span class="cur-tag">current</span>':''}</div>
+            ${sub?`<div style="font-size:11.5px;color:var(--muted)">${esc(sub)}</div>`:''}
             <div class="proj-link mono">${esc(link)}</div></div>
           <div style="display:flex;gap:8px;flex-shrink:0">
             <button class="btn ghost" onclick="copyText('${esc(link)}')">Copy</button>
