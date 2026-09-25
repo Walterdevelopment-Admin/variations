@@ -1023,10 +1023,31 @@ function padClear(vo,slot){
 }
 function padUpload(vo,slot,input){
   const p=padEl(vo,slot); const file=input.files&&input.files[0]; if(!file) return;
-  if(file.size>2*1024*1024){ toast("Image too large — please use one under 2 MB."); input.value=""; return; }
+  if(!/^image\//.test(file.type||"")){ toast("Please choose an image file."); input.value=""; return; }
+  if(file.size>20*1024*1024){ toast("That image is very large — please use one under 20 MB."); input.value=""; return; }
+  const show=(dataUrl)=>{ p._upload=dataUrl; const img=p.querySelector(".sigpad-upload img"); if(img){ img.src=dataUrl; img.hidden=false; } const rm=p.querySelector("[data-clearimg]"); if(rm) rm.hidden=false; };
   const rd=new FileReader();
-  rd.onload=()=>{ p._upload=rd.result; const img=p.querySelector(".sigpad-upload img");
-    if(img){ img.src=rd.result; img.hidden=false; } const rm=p.querySelector("[data-clearimg]"); if(rm) rm.hidden=false; };
+  rd.onload=()=>{
+    // shrink & compress so the signature stays small enough to sync (drawn sigs are already small)
+    const img=new Image();
+    img.onload=()=>{
+      try{
+        const render=(maxDim,quality)=>{
+          const s=Math.min(1, maxDim/Math.max(img.naturalWidth,img.naturalHeight));
+          const w=Math.max(1,Math.round(img.naturalWidth*s)), h=Math.max(1,Math.round(img.naturalHeight*s));
+          const cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+          const ctx=cv.getContext("2d"); ctx.fillStyle="#fff"; ctx.fillRect(0,0,w,h); ctx.drawImage(img,0,0,w,h);
+          return cv.toDataURL("image/jpeg",quality);
+        };
+        let out=render(1000,0.85);
+        if(out.length>320000) out=render(1000,0.6);
+        if(out.length>320000) out=render(700,0.6);
+        show(out);
+      }catch(e){ show(rd.result); }
+    };
+    img.onerror=()=>{ toast("Couldn't read that image — please try another."); };
+    img.src=rd.result;
+  };
   rd.readAsDataURL(file);
 }
 function getSignature(vo,slot){
