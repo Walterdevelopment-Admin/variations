@@ -495,7 +495,7 @@ async function ghDelete(path,message){
   return false;
 }
 async function fetchIndexRemote(){ const res=await ghGet(IDX_PATH); if(res&&res.obj&&res.obj.projects) return res.obj.projects; return null; }
-async function upsertIndex(id,entry){ let p=(await fetchIndexRemote())||loadIndex(); p[id]=Object.assign({created:todayISO()}, p[id]||{}, entry||{}); await ghPut(IDX_PATH,{projects:p},"Update project index"); saveIndex(p); }
+async function upsertIndex(id,entry){ let p=(await fetchIndexRemote())||loadIndex(); const merged=Object.assign({created:todayISO()}, p[id]||{}, entry||{}); if(p[id] && JSON.stringify(merged)===JSON.stringify(p[id])) return; p[id]=merged; await ghPut(IDX_PATH,{projects:p},"Update project index"); saveIndex(p); }
 let _idxT=null;
 function scheduleIndexUpdate(){ if(!canWrite()||!projectId) return; clearTimeout(_idxT); _idxT=setTimeout(()=>{ upsertIndex(projectId,{name:state.project.owners||"", projectNo:state.project.projectNo||"", site:state.project.site||""}); }, 900); }
 async function removeFromIndex(id){ let p=(await fetchIndexRemote())||loadIndex(); delete p[id]; await ghPut(IDX_PATH,{projects:p},"Remove project "+id); saveIndex(p); }
@@ -1398,7 +1398,7 @@ document.addEventListener("keydown",e=>{ if(e.key==="Escape" && !dialogOpen()) c
 applyTheme();
 render();
 updateSyncBadge();
-syncPull().then(()=>{ updateSyncBadge(); checkDraft(); });
+syncPull().then(()=>{ updateSyncBadge(); checkDraft(); if(canWrite() && projectId) scheduleIndexUpdate(); });
 startPoll();
 </script>
 
