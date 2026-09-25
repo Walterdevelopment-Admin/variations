@@ -502,11 +502,12 @@ async function removeFromIndex(id){ let p=(await fetchIndexRemote())||loadIndex(
 
 /* pull the authoritative copy from GitHub and apply it */
 let lastRemoteJSON=null, pendingRemote=null;
+function canonRemote(o){ return JSON.stringify({project:(o&&o.project)||{}, variations:(o&&o.variations)||[]}); }
 function modalOrFormOpen(){ return !!document.getElementById("modalRoot").innerHTML || dialogOpen() || formOpen; }
 function applyRemote(obj){
   state.project = Object.assign({}, state.project, obj.project||{});
   state.variations = Array.isArray(obj.variations) ? obj.variations : [];
-  lastRemoteJSON = JSON.stringify({project:state.project, variations:state.variations});
+  lastRemoteJSON = canonRemote(obj);   // snapshot the ACTUAL remote, so unchanged files aren't re-detected as changed
   try{ localStorage.setItem(KEY, JSON.stringify(state)); }catch(e){}
   render();
 }
@@ -515,8 +516,7 @@ async function syncPull(){
   updateSyncBadge();
   if(!res || res.error){ return; }
   const obj=res.obj; if(!obj) return;
-  const js=JSON.stringify({project:obj.project||{}, variations:obj.variations||[]});
-  if(js===lastRemoteJSON) return;
+  if(canonRemote(obj)===lastRemoteJSON) return;   // nothing actually changed
   if(modalOrFormOpen()){ pendingRemote=obj; return; }
   applyRemote(obj);
 }
@@ -527,7 +527,7 @@ function syncPush(){
   _pushT=setTimeout(async ()=>{
     const payload={ project:state.project, variations:state.variations, updatedAt:new Date().toISOString() };
     const ok=await ghPut(dataPath(projectId), payload, "Update variation register"+(projectId?(" ["+projectId+"]"):""));
-    if(ok) lastRemoteJSON=JSON.stringify({project:state.project, variations:state.variations});
+    if(ok) lastRemoteJSON=canonRemote({project:state.project, variations:state.variations});
   }, 700);
 }
 let pollTick=0;
@@ -550,7 +550,7 @@ async function afterConnect(){
   // no remote file yet: publish the current register so it exists on GitHub and can sync
   const ok=await ghPut(dataPath(projectId), {project:state.project, variations:state.variations, updatedAt:new Date().toISOString()}, "Publish register"+(projectId?(" ["+projectId+"]"):""));
   if(ok){
-    lastRemoteJSON=JSON.stringify({project:state.project, variations:state.variations});
+    lastRemoteJSON=canonRemote({project:state.project, variations:state.variations});
     if(projectId){ try{ await upsertIndex(projectId, {name:state.project.owners||"", projectNo:state.project.projectNo||"", site:state.project.site||""}); }catch(e){} }
     updateSyncBadge(); render(); toast("Connected — this register is now published to GitHub and will sync to everyone with the link.");
   } else {
@@ -562,7 +562,7 @@ function publishNow(){
   if(!canWrite()){ toast("Connect as builder first."); return; }
   clearTimeout(_pushT);
   ghPut(dataPath(projectId), {project:state.project, variations:state.variations, updatedAt:new Date().toISOString()}, "Publish register"+(projectId?(" ["+projectId+"]"):"")).then(async ok=>{
-    if(ok){ lastRemoteJSON=JSON.stringify({project:state.project, variations:state.variations}); if(projectId){ try{ await upsertIndex(projectId, {name:state.project.owners||"", projectNo:state.project.projectNo||"", site:state.project.site||""}); }catch(e){} } toast("Published to GitHub — everyone with the link now sees this."); }
+    if(ok){ lastRemoteJSON=canonRemote({project:state.project, variations:state.variations}); if(projectId){ try{ await upsertIndex(projectId, {name:state.project.owners||"", projectNo:state.project.projectNo||"", site:state.project.site||""}); }catch(e){} } toast("Published to GitHub — everyone with the link now sees this."); }
     else { toast("Publish failed — your token needs Contents: Read and write."); }
   });
 }
@@ -1193,6 +1193,7 @@ function saveForm(){
   ["admin","design","restocking","other"].forEach(k=>formVo.charges[k]=+formVo.charges[k]||0);
   const idx = state.variations.findIndex(v=>v.id===formVo.id);
   if(idx>=0) state.variations[idx]=formVo; else state.variations.push(formVo);
+  pendingRemote=null;   // this save is authoritative — don't let a deferred background pull overwrite it
   openIds.add(formVo.id); closeModal(); render(); syncPush(); toast(idx>=0?"Variation updated.":"Variation added.");
 }
 function closeModal(){
