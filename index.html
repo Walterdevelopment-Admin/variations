@@ -449,7 +449,7 @@ function saveIndex(x){ try{ localStorage.setItem(PROJ_INDEX, JSON.stringify(x));
 /* Client sign-back service (Cloudflare Worker). When set, a read-only client's
    signature is POSTed here and written to GitHub server-side. Empty = clients
    sign locally and return a PDF. */
-const SIGN_ENDPOINT = "";
+const SIGN_ENDPOINT = "https://wdd-sign.lucky-hat-0188.workers.dev";
 const GH_REPO = "Walterdevelopment-Admin/variations";
 const GH_TOKEN_KEY = "wdd_vo_gh_token";
 const DATA_DIR = "data";
