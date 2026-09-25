@@ -31,7 +31,7 @@
         "Subcontractor rescheduling",
         "Construction sequencing"
       ],
-      "payment": "next",
+      "payment": "prior",
       "paymentDue": "",
       "status": "issued",
       "sign": null,
@@ -40,5 +40,5 @@
       "amount": 13128
     }
   ],
-  "updatedAt": "2026-09-25T05:48:07.183Z"
+  "updatedAt": "2026-09-25T05:48:30.265Z"
 }
