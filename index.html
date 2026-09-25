@@ -446,6 +446,10 @@ function loadIndex(){ try{ return JSON.parse(localStorage.getItem(PROJ_INDEX)||"
 function saveIndex(x){ try{ localStorage.setItem(PROJ_INDEX, JSON.stringify(x)); }catch(e){} }
 
 /* ---------- GitHub sync (data store) ---------- */
+/* Client sign-back service (Cloudflare Worker). When set, a read-only client's
+   signature is POSTed here and written to GitHub server-side. Empty = clients
+   sign locally and return a PDF. */
+const SIGN_ENDPOINT = "";
 const GH_REPO = "Walterdevelopment-Admin/variations";
 const GH_TOKEN_KEY = "wdd_vo_gh_token";
 const DATA_DIR = "data";
@@ -1051,7 +1055,7 @@ function setProject(k,val){ state.project[k]=val; save(); syncPush(); if(k==="pr
 function vo(id){ return state.variations.find(v=>v.id===id); }
 function toast(msg){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove("show"),2600); }
 
-function signVo(id){
+async function signVo(id){
   const v = vo(id); if(!v) return;
   const n1 = document.getElementById(`so1-${id}`).value.trim();
   const n2 = document.getElementById(`so2-${id}`).value.trim();
@@ -1063,10 +1067,42 @@ function signVo(id){
   if(!sig1){ toast("Please draw or upload Owner 1's signature."); return; }
   if(!ack){ toast("Please tick the confirmation box to approve."); return; }
   if(n2 && !sig2){ toast("Add Owner 2's signature, or clear the Owner 2 name."); return; }
-  v.sign = { owner1:n1, date1:d, sig1, owner2:n2, date2:n2?d:"", sig2, builderName:v.sign?.builderName||"", builderDate:v.sign?.builderDate||"", signedAt:new Date().toISOString() };
-  v.status = "approved"; v.example = false; v.note="";
-  render(); syncPush();
-  toast(canWrite() ? "Approved and synced." : "Approved — now use “Print / save this approval” to send it back to the builder.");
+  const signObj = { owner1:n1, date1:d, sig1, owner2:n2, date2:n2?d:"", sig2, builderName:v.sign?.builderName||"", builderDate:v.sign?.builderDate||"", signedAt:new Date().toISOString() };
+
+  if(canWrite()){
+    v.sign = signObj; v.status="approved"; v.example=false; v.note="";
+    render(); syncPush(); toast("Approved and synced.");
+    return;
+  }
+  // client (read-only) — submit signature to the sign service so it syncs back to GitHub
+  if(SIGN_ENDPOINT){
+    const btn=document.querySelector(`#card-${id} .signoff-body .btn.primary`);
+    if(btn){ btn.disabled=true; btn.textContent="Submitting…"; }
+    toast("Submitting your approval…");
+    try{
+      const res=await fetch(SIGN_ENDPOINT, {method:"POST", headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({ projectId: projectId||"default", variationId:id, sign:signObj })});
+      const data=await res.json().catch(()=>({}));
+      if(res.ok && data.ok){
+        v.sign=signObj; v.status="approved"; v.note="";
+        lastRemoteJSON=null;               // force the next poll to re-sync from GitHub
+        render(); toast("Approved — your signature has been sent and saved. Thank you.");
+        setTimeout(syncPull, 1500);
+      } else {
+        if(btn){ btn.disabled=false; }
+        render();
+        toast((data && data.error) ? ("Couldn't submit: "+data.error) : "Couldn't submit your approval — please try again, or use Print / save.");
+      }
+    }catch(e){
+      render();
+      toast("Network problem submitting your approval — please try again, or use Print / save this approval.");
+    }
+    return;
+  }
+  // no sign service configured — keep it locally and let them return a PDF
+  v.sign = signObj; v.status="approved"; v.example=false; v.note="";
+  render();
+  toast("Approved — now use “Print / save this approval” to send it back to the builder.");
 }
 async function unsign(id){ const v=vo(id); if(!v)return;
   const ok=await uiConfirm({title:"Withdraw approval",message:"Withdraw the recorded approval for "+v.no+"? It will return to 'awaiting owner approval'.",confirmLabel:"Withdraw",danger:true});
