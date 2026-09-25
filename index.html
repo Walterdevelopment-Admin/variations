@@ -611,12 +611,12 @@ function save(){
 
 /* ---------- calculations ---------- */
 function calc(v){
-  const items = (v.lineItems||[]).reduce((s,i)=>s+(+i.amount||0),0);
+  // all amounts are GST-inclusive. Backward-compatible with old line-item data.
+  const amount = (v.amount!=null && v.amount!=="") ? (+v.amount||0)
+               : (v.lineItems||[]).reduce((s,i)=>s+(+i.amount||0),0);
   const c = v.charges||{};
   const charges = (+c.admin||0)+(+c.design||0)+(+c.restocking||0)+(+c.other||0);
-  const sub = items+charges;
-  const gst = sub*GST;
-  return { items, charges, sub, gst, total: sub+gst };
+  return { amount, charges, total: amount + charges };
 }
 function statusMeta(s){
   return ({approved:{c:"approved",t:"Approved & signed"},issued:{c:"issued",t:"Awaiting owner approval"},
@@ -835,10 +835,9 @@ function renderCard(v){
 }
 
 function renderBody(v,t,eotTxt){
-  const costRows = (v.lineItems||[]).map(i=>
-    `<tr><td>${esc(i.desc)||"—"}</td><td style="color:var(--faint)">${esc(i.ref)}</td><td class="num">${money(+i.amount||0)}</td></tr>`).join("");
   const c = v.charges||{};
-  const chargeRow = (lbl,val)=> (+val)? `<tr class="charge"><td colspan="2">${lbl}</td><td class="num">${money(+val)}</td></tr>`:"";
+  const chargeRow = (lbl,val)=> (+val)? `<tr class="charge"><td>${lbl}</td><td class="num">${money(+val)}</td></tr>`:"";
+  const hasCharges = (+c.admin||0)+(+c.design||0)+(+c.restocking||0)+(+c.other||0)!==0;
   const eotTags = (v.eotCauses||[]).map(x=>`<span class="tag">${esc(x)}</span>`).join("") || '<span style="color:var(--faint);font-size:12px">—</span>';
 
   return `
@@ -851,16 +850,14 @@ function renderBody(v,t,eotTxt){
 
       <div class="cost">
         <table>
-          <thead><tr><th>Item</th><th>Ref</th><th class="num">Amount (ex GST)</th></tr></thead>
+          <thead><tr><th>Amount</th><th class="num">GST inclusive</th></tr></thead>
           <tbody>
-            ${costRows||'<tr><td colspan="3" style="color:var(--faint)">No line items</td></tr>'}
+            <tr><td>Variation amount</td><td class="num">${money(t.amount)}</td></tr>
             ${chargeRow("Administration charge — per Materials Variation Declaration",c.admin)}
             ${chargeRow("Drawing / design / consultant / approval fees",c.design)}
             ${chargeRow("Restocking / cancellation fee",c.restocking)}
             ${chargeRow("Other",c.other)}
-            <tr class="sub"><td colspan="2">Subtotal (ex GST)</td><td class="num">${money(t.sub)}</td></tr>
-            <tr class="charge"><td colspan="2">GST (10%)</td><td class="num">${money(t.gst)}</td></tr>
-            <tr class="tot"><td colspan="2">Total variation amount (incl GST)</td><td class="num">${money(t.total)}</td></tr>
+            <tr class="tot"><td>Total variation amount (incl GST)</td><td class="num">${money(t.total)}</td></tr>
           </tbody>
         </table>
       </div>
@@ -1101,13 +1098,14 @@ function blankVo(){
   const next = (nums.length?Math.max(...nums):0)+1;
   return { id:"v"+Date.now(), no:"VO-"+String(next).padStart(3,"0"), title:"", desc:"", ref:"",
     requestedBy:"owner", nature:"added", dateRequested:todayISO(), dateIssued:todayISO(),
-    lineItems:[{desc:"",ref:"",amount:""}], charges:{admin:"",design:"",restocking:"",other:""},
+    amount:"", charges:{admin:"",design:"",restocking:"",other:""},
     eotDays:0, eotCauses:[], payment:"next", paymentDue:"", status:"draft", sign:null, note:"", example:false };
 }
 let formVo = null;
 function openForm(id){
   formVo = id ? JSON.parse(JSON.stringify(vo(id))) : blankVo();
-  if(!formVo.lineItems || !formVo.lineItems.length) formVo.lineItems=[{desc:"",ref:"",amount:""}];
+  if(!formVo.charges) formVo.charges={admin:"",design:"",restocking:"",other:""};
+  if(formVo.amount==null && Array.isArray(formVo.lineItems)) formVo.amount = formVo.lineItems.reduce((s,i)=>s+(+i.amount||0),0)||"";
   renderForm(!!id);
 }
 /* draft auto-save: never lose an in-progress variation if the page reloads */
@@ -1119,10 +1117,10 @@ function clearDraft(){ try{ localStorage.removeItem(DRAFT_KEY); }catch(e){} }
 function checkDraft(){
   if(!(state.settings.role==="builder" && canBuild())) return;
   let d=null; try{ d=JSON.parse(localStorage.getItem(DRAFT_KEY)||"null"); }catch(e){}
-  const has = d && (String(d.title||"").trim() || String(d.desc||"").trim() || (Array.isArray(d.lineItems)&&d.lineItems.some(i=>i&&(i.desc||i.amount))));
+  const has = d && (String(d.title||"").trim() || String(d.desc||"").trim() || (d.amount!=null && d.amount!==""));
   if(!has){ clearDraft(); return; }
   uiConfirm({title:"Resume unsaved variation?",message:"You have a variation that wasn't saved last time. Resume editing it now?",confirmLabel:"Resume editing"}).then(ok=>{
-    if(ok){ formVo=d; if(!formVo.lineItems||!formVo.lineItems.length) formVo.lineItems=[{desc:"",ref:"",amount:""}]; renderForm(!!state.variations.find(v=>v.id===d.id)); }
+    if(ok){ formVo=d; if(!formVo.charges) formVo.charges={admin:"",design:"",restocking:"",other:""}; renderForm(!!state.variations.find(v=>v.id===d.id)); }
     else { clearDraft(); }
   });
 }
@@ -1130,13 +1128,6 @@ function renderForm(isEdit){
   formOpen = true;
   const v = formVo;
   const opt = (obj,cur)=>Object.entries(obj).map(([k,l])=>`<option value="${k}" ${k===cur?"selected":""}>${l}</option>`).join("");
-  const liRows = v.lineItems.map((i,idx)=>`
-    <div class="li-row">
-      <input class="inp" placeholder="Description" value="${esc(i.desc)}" oninput="upLi(${idx},'desc',this.value)">
-      <input class="inp" placeholder="Ref" value="${esc(i.ref)}" oninput="upLi(${idx},'ref',this.value)">
-      <input class="inp" type="number" step="0.01" placeholder="ex GST" value="${i.amount}" oninput="upLi(${idx},'amount',this.value)">
-      <button class="li-del" onclick="delLi(${idx})" aria-label="Remove line">×</button>
-    </div>`).join("");
   const causeChecks = EOT_CAUSES.map(c=>`<label class="ck"><input type="checkbox" ${v.eotCauses.includes(c)?"checked":""} onchange="upCause('${esc(c)}',this.checked)"> ${c}</label>`).join("");
 
   const html = `<div class="modal-bg" onclick="if(event.target===this)closeModal()">
@@ -1151,24 +1142,20 @@ function renderForm(isEdit){
         <div class="fg"><label>Description of variation works</label><textarea class="inp" placeholder="Describe the work added, deleted or changed" oninput="formVo.desc=this.value">${esc(v.desc)}</textarea></div>
         <div class="fg"><label>Drawing / quote / selection reference</label><input class="inp" value="${esc(v.ref)}" oninput="formVo.ref=this.value"></div>
         <div class="form-row">
-          <div class="fg"><label>Requested by</label><select class="inp" onchange="formVo.requestedBy=this.value">${opt(REQBY,v.requestedBy)}</select></div>
+          <div class="fg"><label>Amount (GST inclusive)</label><input class="inp" type="number" step="0.01" placeholder="e.g. 8800  ·  negative for a credit" value="${v.amount!=null?v.amount:''}" oninput="formVo.amount=this.value;previewTotal()"></div>
           <div class="fg"><label>Nature of change</label><select class="inp" onchange="formVo.nature=this.value">${opt(NATURE,v.nature)}</select></div>
         </div>
+        <div class="fg"><label>Requested by</label><select class="inp" onchange="formVo.requestedBy=this.value">${opt(REQBY,v.requestedBy)}</select></div>
 
         <fieldset>
-          <legend>Amounts (ex GST) — use a negative amount for a credit / omission</legend>
-          <div class="li-row" style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600">
-            <span>Item description</span><span>Ref</span><span style="text-align:right">Amount</span><span></span>
-          </div>
-          <div id="liRows" style="display:flex;flex-direction:column;gap:8px;margin-top:6px">${liRows}</div>
-          <button class="btn ghost li-add" onclick="addLi()" style="margin-top:10px">+ Add line item</button>
-          <div class="charge-grid" style="margin-top:14px">
+          <legend>Additional charges (GST inclusive) — optional</legend>
+          <div class="charge-grid">
             <div class="fg"><label>Administration charge</label><input class="inp" type="number" step="0.01" value="${v.charges.admin}" oninput="formVo.charges.admin=this.value;previewTotal()"></div>
             <div class="fg"><label>Design / consultant / approval fees</label><input class="inp" type="number" step="0.01" value="${v.charges.design}" oninput="formVo.charges.design=this.value;previewTotal()"></div>
             <div class="fg"><label>Restocking / cancellation fee</label><input class="inp" type="number" step="0.01" value="${v.charges.restocking}" oninput="formVo.charges.restocking=this.value;previewTotal()"></div>
             <div class="fg"><label>Other</label><input class="inp" type="number" step="0.01" value="${v.charges.other}" oninput="formVo.charges.other=this.value;previewTotal()"></div>
           </div>
-          <div class="total-preview" style="margin-top:14px"><span>Total incl GST (10%)</span><span id="totalPrev">${money(calc(v).total)}</span></div>
+          <div class="total-preview" style="margin-top:14px"><span>Total (GST inclusive)</span><span id="totalPrev">${money(calc(v).total)}</span></div>
         </fieldset>
 
         <fieldset>
@@ -1197,14 +1184,12 @@ function renderForm(isEdit){
     </div></div>`;
   document.getElementById("modalRoot").innerHTML = html;
 }
-function upLi(i,k,val){ formVo.lineItems[i][k]=val; previewTotal(); }
-function addLi(){ formVo.lineItems.push({desc:"",ref:"",amount:""}); renderForm(false); }
-function delLi(i){ formVo.lineItems.splice(i,1); if(!formVo.lineItems.length)formVo.lineItems.push({desc:"",ref:"",amount:""}); renderForm(false); }
 function upCause(c,on){ const s=new Set(formVo.eotCauses); on?s.add(c):s.delete(c); formVo.eotCauses=[...s]; }
 function previewTotal(){ const el=document.getElementById("totalPrev"); if(el) el.textContent=money(calc(formVo).total); }
 function saveForm(){
   if(!formVo.title.trim() && !formVo.desc.trim()){ toast("Add a title or description first."); return; }
-  formVo.lineItems = formVo.lineItems.filter(i=>i.desc||i.amount).map(i=>({desc:i.desc,ref:i.ref,amount:+i.amount||0}));
+  formVo.amount = +formVo.amount||0;
+  delete formVo.lineItems;
   ["admin","design","restocking","other"].forEach(k=>formVo.charges[k]=+formVo.charges[k]||0);
   const idx = state.variations.findIndex(v=>v.id===formVo.id);
   if(idx>=0) state.variations[idx]=formVo; else state.variations.push(formVo);
