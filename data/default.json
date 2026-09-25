@@ -1,0 +1,132 @@
+{
+  "project": {
+    "owners": "",
+    "site": "",
+    "projectNo": "P2026-0000",
+    "contractDate": "",
+    "preparedBy": "Walter Design & Development Pty Ltd"
+  },
+  "variations": [
+    {
+      "id": "ex1",
+      "no": "VO-001",
+      "example": true,
+      "title": "Upgrade to 900mm freestanding oven & rangehood",
+      "desc": "Owner-requested upgrade from the standard 600mm appliance package to a 900mm freestanding oven and matching canopy rangehood, including revised cabinetry opening and additional gas/electrical provision.",
+      "ref": "Kitchen selection sheet Rev B · Quote WDD-Q-118",
+      "requestedBy": "owner",
+      "nature": "changed",
+      "dateRequested": "2026-08-18",
+      "dateIssued": "2026-08-20",
+      "lineItems": [
+        {
+          "desc": "Appliance upgrade supply & install",
+          "ref": "WDD-Q-118",
+          "amount": 980
+        },
+        {
+          "desc": "Cabinetry opening & benchtop adjustment",
+          "ref": "",
+          "amount": 420
+        }
+      ],
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 0,
+      "eotCauses": [],
+      "payment": "next",
+      "paymentDue": "",
+      "status": "approved",
+      "sign": {
+        "owner1": "J. & K. Mercer",
+        "date1": "2026-08-21",
+        "owner2": "",
+        "date2": "",
+        "builderName": "D. Walter",
+        "builderDate": "2026-08-21",
+        "signedAt": "2026-08-21T09:14:00"
+      },
+      "note": ""
+    },
+    {
+      "id": "ex2",
+      "no": "VO-002",
+      "example": true,
+      "title": "Slab redesign for reactive (Class H1) soil",
+      "desc": "Following the geotechnical report, the structural engineer amended the raft slab design to suit reactive Class H1 soil. Additional concrete, reinforcement and beam depth required. Statutory / engineering-driven change.",
+      "ref": "Engineer detail S-02 Rev C · Geotech report GR-2261",
+      "requestedBy": "authority",
+      "nature": "changed",
+      "dateRequested": "2026-08-29",
+      "dateIssued": "2026-09-01",
+      "lineItems": [
+        {
+          "desc": "Additional concrete & reinforcement to raft slab",
+          "ref": "S-02 Rev C",
+          "amount": 3150
+        }
+      ],
+      "charges": {
+        "admin": 150,
+        "design": 550,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 5,
+      "eotCauses": [
+        "Drawing / design amendment",
+        "Approvals / certification"
+      ],
+      "payment": "next",
+      "paymentDue": "",
+      "status": "approved",
+      "sign": {
+        "owner1": "J. & K. Mercer",
+        "date1": "2026-09-03",
+        "owner2": "",
+        "date2": "",
+        "builderName": "D. Walter",
+        "builderDate": "2026-09-02",
+        "signedAt": "2026-09-03T16:40:00"
+      },
+      "note": ""
+    },
+    {
+      "id": "ex3",
+      "no": "VO-003",
+      "example": true,
+      "title": "Omit rear-yard landscaping (Owner to arrange)",
+      "desc": "Owner has elected to arrange rear-yard soft & hard landscaping directly with their own contractor after handover. This scope is omitted from the contract works as a credit.",
+      "ref": "Landscape plan L-01 (deleted scope)",
+      "requestedBy": "owner",
+      "nature": "omitted",
+      "dateRequested": "2026-09-08",
+      "dateIssued": "2026-09-09",
+      "lineItems": [
+        {
+          "desc": "Credit — omit rear-yard landscaping scope",
+          "ref": "L-01",
+          "amount": -3000
+        }
+      ],
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 0,
+      "eotCauses": [],
+      "payment": "next",
+      "paymentDue": "",
+      "status": "issued",
+      "sign": null,
+      "note": ""
+    }
+  ],
+  "updatedAt": "2026-09-25T04:08:33.897Z"
+}
