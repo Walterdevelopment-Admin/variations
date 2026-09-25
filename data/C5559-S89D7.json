@@ -6,6 +6,45 @@
     "contractDate": "",
     "preparedBy": "Walter Design & Development Pty Ltd"
   },
-  "variations": [],
-  "updatedAt": "2026-09-25T04:00:46.153Z"
+  "variations": [
+    {
+      "id": "v1790309382432",
+      "no": "VO-001",
+      "title": "Extra - Supply & Install New 2700H x 1600W Fixed Window In Dining Area - Stage 02",
+      "desc": "- Certifier\n- STA Inspection\n- Carpenter for window installation\n- Supply of materials for framing rectification\n- Window Supply\n- Lintel Supply\n- Brick Supply\n- Bricklayer\n- Electrician\n",
+      "ref": "",
+      "requestedBy": "owner",
+      "nature": "added",
+      "dateRequested": "2026-09-25",
+      "dateIssued": "2026-09-25",
+      "lineItems": [
+        {
+          "desc": "",
+          "ref": "",
+          "amount": 11934.55
+        }
+      ],
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 0,
+      "eotCauses": [
+        "Drawing / design amendment",
+        "Approvals / certification",
+        "Material / procurement lead time",
+        "Subcontractor rescheduling",
+        "Construction sequencing"
+      ],
+      "payment": "next",
+      "paymentDue": "",
+      "status": "draft",
+      "sign": null,
+      "note": "",
+      "example": false
+    }
+  ],
+  "updatedAt": "2026-09-25T04:11:41.364Z"
 }
