@@ -1,1 +1,48 @@
-{"project":{"owners":"TEST — please ignore","site":"","projectNo":"TEST-EMAIL","contractDate":"","preparedBy":"WDD"},"variations":[{"id":"tv1","no":"VO-001","title":"Email notification test","desc":"t","ref":"","requestedBy":"owner","nature":"added","dateRequested":"2026-09-29","dateIssued":"2026-09-29","amount":1234.5,"charges":{"admin":0,"design":0,"restocking":0,"other":0},"eotDays":0,"eotCauses":[],"payment":"next","paymentDue":"","status":"issued","sign":null,"note":""}]}
+{
+  "project": {
+    "owners": "TEST — please ignore",
+    "site": "",
+    "projectNo": "TEST-EMAIL",
+    "contractDate": "",
+    "preparedBy": "WDD"
+  },
+  "variations": [
+    {
+      "id": "tv1",
+      "no": "VO-001",
+      "title": "Email notification test",
+      "desc": "t",
+      "ref": "",
+      "requestedBy": "owner",
+      "nature": "added",
+      "dateRequested": "2026-09-29",
+      "dateIssued": "2026-09-29",
+      "amount": 1234.5,
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 0,
+      "eotCauses": [],
+      "payment": "next",
+      "paymentDue": "",
+      "status": "approved",
+      "sign": {
+        "owner1": "Test Owner",
+        "date1": "2026-09-29",
+        "sig1": "SIGDATA",
+        "owner2": "",
+        "date2": "",
+        "sig2": "",
+        "builderName": "",
+        "builderDate": "",
+        "signedAt": "2026-09-29T05:44:14.424Z",
+        "via": "client"
+      },
+      "note": ""
+    }
+  ],
+  "updatedAt": "2026-09-29T05:44:14.424Z"
+}
