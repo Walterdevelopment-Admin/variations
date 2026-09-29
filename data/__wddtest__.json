@@ -1,1 +1,37 @@
-{"project":{"owners":"TEST","site":"","projectNo":"TEST-CHG","contractDate":"","preparedBy":"WDD"},"variations":[{"id":"tv1","no":"VO-001","title":"Change test","desc":"t","ref":"","requestedBy":"owner","nature":"added","dateRequested":"2026-09-29","dateIssued":"2026-09-29","amount":500,"charges":{"admin":0,"design":0,"restocking":0,"other":0},"eotDays":0,"eotCauses":[],"payment":"next","paymentDue":"","status":"issued","sign":null,"note":""}]}
+{
+  "project": {
+    "owners": "TEST",
+    "site": "",
+    "projectNo": "TEST-CHG",
+    "contractDate": "",
+    "preparedBy": "WDD"
+  },
+  "variations": [
+    {
+      "id": "tv1",
+      "no": "VO-001",
+      "title": "Change test",
+      "desc": "t",
+      "ref": "",
+      "requestedBy": "owner",
+      "nature": "added",
+      "dateRequested": "2026-09-29",
+      "dateIssued": "2026-09-29",
+      "amount": 500,
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 0,
+      "eotCauses": [],
+      "payment": "next",
+      "paymentDue": "",
+      "status": "changes",
+      "sign": null,
+      "note": "Please reduce the price and confirm the fittings."
+    }
+  ],
+  "updatedAt": "2026-09-29T05:26:06.046Z"
+}
