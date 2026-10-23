@@ -1248,11 +1248,25 @@ function blankVo(){
     eotDays:0, eotCauses:[], payment:"next", paymentDue:"", status:"draft", sign:null, note:"", example:false };
 }
 let formVo = null;
-function openForm(id){
-  formVo = id ? JSON.parse(JSON.stringify(vo(id))) : blankVo();
+function startForm(id, src){
+  formVo = src ? src : (id ? JSON.parse(JSON.stringify(vo(id))) : blankVo());
   if(!formVo.charges) formVo.charges={admin:"",design:"",restocking:"",other:""};
   if(formVo.amount==null && Array.isArray(formVo.lineItems)) formVo.amount = formVo.lineItems.reduce((s,i)=>s+(+i.amount||0),0)||"";
   renderForm(!!id);
+}
+function openForm(id){
+  if(!id){
+    // new variation — offer to resume an unfinished one if a draft exists
+    let d=null; try{ d=JSON.parse(localStorage.getItem(DRAFT_KEY)||"null"); }catch(e){}
+    const has = d && (String(d.title||"").trim() || String(d.desc||"").trim() || (d.amount!=null && d.amount!==""));
+    if(has){
+      uiConfirm({title:"Resume unfinished variation?",message:"You have a variation you started but didn't save. Resume it? (Choose Start new to begin a blank one.)",confirmLabel:"Resume",cancelLabel:"Start new"}).then(ok=>{
+        if(ok){ startForm(false, d); } else { clearDraft(); startForm(false); }
+      });
+      return;
+    }
+  }
+  startForm(id);
 }
 /* draft auto-save: never lose an in-progress variation if the page reloads */
 let formOpen=false, _draftT=null;
@@ -1276,9 +1290,9 @@ function renderForm(isEdit){
   const opt = (obj,cur)=>Object.entries(obj).map(([k,l])=>`<option value="${k}" ${k===cur?"selected":""}>${l}</option>`).join("");
   const causeChecks = EOT_CAUSES.map(c=>`<label class="ck"><input type="checkbox" ${v.eotCauses.includes(c)?"checked":""} onchange="upCause('${esc(c)}',this.checked)"> ${c}</label>`).join("");
 
-  const html = `<div class="modal-bg" onclick="if(event.target===this)closeModal()">
+  const html = `<div class="modal-bg">
     <div class="modal" role="dialog" aria-modal="true">
-      <div class="modal-head"><h3>${isEdit?"Edit variation":"New variation request"}</h3><button class="x" onclick="closeModal()">×</button></div>
+      <div class="modal-head"><h3>${isEdit?"Edit variation":"New variation request"}</h3><button class="x" onclick="closeModal()" title="Close (your entry is kept)">×</button></div>
       <div class="modal-body">
         <div class="form-row">
           <div class="fg"><label>Variation No.</label><input class="inp" value="${esc(v.no)}" oninput="formVo.no=this.value"></div>
@@ -1324,7 +1338,7 @@ function renderForm(isEdit){
         <div class="help">Issuing marks it ready for the Owner to review &amp; sign. Approval is captured by the Owner's signature.</div></div>
       </div>
       <div class="modal-foot">
-        <button class="btn ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn ghost" onclick="cancelForm()">Cancel</button>
         <button class="btn primary" onclick="saveForm()">${isEdit?"Save changes":"Add variation"}</button>
       </div>
     </div></div>`;
@@ -1340,10 +1354,18 @@ function saveForm(){
   const idx = state.variations.findIndex(v=>v.id===formVo.id);
   if(idx>=0) state.variations[idx]=formVo; else state.variations.push(formVo);
   pendingRemote=null;   // this save is authoritative — don't let a deferred background pull overwrite it
-  openIds.add(formVo.id); closeModal(); render(); syncPush(); toast(idx>=0?"Variation updated.":"Variation added.");
+  openIds.add(formVo.id); clearDraft(); closeModal(); render(); syncPush(); toast(idx>=0?"Variation updated.":"Variation added.");
+}
+async function cancelForm(){
+  const hasContent = formVo && (String(formVo.title||"").trim() || String(formVo.desc||"").trim() || (formVo.amount!=null && formVo.amount!==""));
+  if(hasContent){
+    const ok=await uiConfirm({title:"Discard this variation?",message:"You'll lose what you've entered on this variation. Discard it?",confirmLabel:"Discard",danger:true});
+    if(!ok) return;
+  }
+  clearDraft(); closeModal();
 }
 function closeModal(){
-  if(formOpen){ formOpen=false; clearDraft(); }
+  if(formOpen){ formOpen=false; }   // keep the in-progress draft so it can always be resumed
   document.getElementById("modalRoot").innerHTML="";
   if(pendingRemote && !dialogOpen()){ const p=pendingRemote; pendingRemote=null; applyRemote(p); }
 }
@@ -1381,7 +1403,7 @@ function uiConfirm(o){
       <div class="modal" style="max-width:430px" role="dialog" aria-modal="true">
         <div class="modal-head"><h3>${esc(o.title||'')}</h3><button class="x" id="dlgX" aria-label="Cancel">×</button></div>
         <div class="modal-body"><p style="margin:0;font-size:13.5px;color:var(--ink-soft);line-height:1.5">${esc(o.message||'')}</p></div>
-        <div class="modal-foot"><button class="btn ghost" id="dlgCancel">Cancel</button><button class="btn" id="dlgOk" style="${o.danger?'background:var(--bad);border-color:var(--bad);color:#fff':'background:var(--accent);border-color:var(--accent);color:#fff'}">${esc(o.confirmLabel||'Confirm')}</button></div>
+        <div class="modal-foot"><button class="btn ghost" id="dlgCancel">${esc(o.cancelLabel||'Cancel')}</button><button class="btn" id="dlgOk" style="${o.danger?'background:var(--bad);border-color:var(--bad);color:#fff':'background:var(--accent);border-color:var(--accent);color:#fff'}">${esc(o.confirmLabel||'Confirm')}</button></div>
       </div></div>`;
     const done=v=>{ root.innerHTML=""; document.removeEventListener("keydown",key,true); resolve(v); };
     setTimeout(()=>{ try{ document.getElementById("dlgOk").focus(); }catch(e){} },30);
