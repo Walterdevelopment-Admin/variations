@@ -49,7 +49,33 @@
       "note": "",
       "example": false,
       "amount": 13128
+    },
+    {
+      "id": "v1792721624186",
+      "no": "VO-002",
+      "title": "Extra - Supply & Install x2 Mercator Bond II 9W CCT LED Wall Light - White to Kitchen Wall",
+      "desc": "",
+      "ref": "",
+      "requestedBy": "owner",
+      "nature": "added",
+      "dateRequested": "2026-10-23",
+      "dateIssued": "2026-10-23",
+      "amount": 0,
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 0,
+      "eotCauses": [],
+      "payment": "next",
+      "paymentDue": "",
+      "status": "draft",
+      "sign": null,
+      "note": "",
+      "example": false
     }
   ],
-  "updatedAt": "2026-09-29T05:28:39.719Z"
+  "updatedAt": "2026-10-23T02:13:49.856Z"
 }
