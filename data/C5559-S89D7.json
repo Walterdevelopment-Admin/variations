@@ -69,13 +69,13 @@
       },
       "eotDays": 0,
       "eotCauses": [],
-      "payment": "next",
+      "payment": "prior",
       "paymentDue": "",
-      "status": "draft",
+      "status": "issued",
       "sign": null,
       "note": "",
       "example": false
     }
   ],
-  "updatedAt": "2026-10-23T02:16:04.565Z"
+  "updatedAt": "2026-10-23T02:16:24.762Z"
 }
