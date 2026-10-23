@@ -75,7 +75,33 @@
       "sign": null,
       "note": "",
       "example": false
+    },
+    {
+      "id": "v1792721868114",
+      "no": "VO-003",
+      "title": "Variation - Living fan change to Eglo Iluka 60\" DC ABS 3 Blade Low Profile Ceiling Fan with Remote",
+      "desc": "Change Only Living Room Fan to Eglo Iluka 60\" DC ABS 3 Blade Low Profile Ceiling Fan with Remote",
+      "ref": "",
+      "requestedBy": "owner",
+      "nature": "added",
+      "dateRequested": "2026-10-23",
+      "dateIssued": "2026-10-23",
+      "amount": 484,
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 0,
+      "eotCauses": [],
+      "payment": "prior",
+      "paymentDue": "",
+      "status": "issued",
+      "sign": null,
+      "note": "",
+      "example": false
     }
   ],
-  "updatedAt": "2026-10-23T02:17:30.081Z"
+  "updatedAt": "2026-10-23T02:18:40.863Z"
 }
