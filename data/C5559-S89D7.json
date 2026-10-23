@@ -101,7 +101,33 @@
       "sign": null,
       "note": "",
       "example": false
+    },
+    {
+      "id": "v1792721935874",
+      "no": "VO-004",
+      "title": "Variation - Change all fans (Excluding Living) to Fanco Eco Silent Pro 52\" DC Ceiling Fan with Remote | White",
+      "desc": "Change all 12 fans (Excluding Living) to Fanco Eco Silent Pro 52\" DC Ceiling Fan with Remote | White",
+      "ref": "",
+      "requestedBy": "owner",
+      "nature": "added",
+      "dateRequested": "2026-10-23",
+      "dateIssued": "2026-10-23",
+      "amount": 1452,
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 0,
+      "eotCauses": [],
+      "payment": "prior",
+      "paymentDue": "",
+      "status": "issued",
+      "sign": null,
+      "note": "",
+      "example": false
     }
   ],
-  "updatedAt": "2026-10-23T02:18:40.863Z"
+  "updatedAt": "2026-10-23T02:19:57.818Z"
 }
