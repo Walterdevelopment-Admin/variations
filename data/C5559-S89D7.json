@@ -153,7 +153,33 @@
       "sign": null,
       "note": "",
       "example": false
+    },
+    {
+      "id": "v1793583670423",
+      "no": "VO-006",
+      "title": "Variation - Final Updated Price difference for joinery",
+      "desc": "- Supply and Install as per Joinery Plan",
+      "ref": "",
+      "requestedBy": "owner",
+      "nature": "changed",
+      "dateRequested": "2026-11-02",
+      "dateIssued": "2026-11-02",
+      "amount": 62992.6,
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 0,
+      "eotCauses": [],
+      "payment": "prior",
+      "paymentDue": "",
+      "status": "issued",
+      "sign": null,
+      "note": "",
+      "example": false
     }
   ],
-  "updatedAt": "2026-10-30T06:58:07.418Z"
+  "updatedAt": "2026-11-02T01:42:41.467Z"
 }
