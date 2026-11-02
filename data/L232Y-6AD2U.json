@@ -6,6 +6,33 @@
     "contractDate": "",
     "preparedBy": "Walter Design & Development Pty Ltd"
   },
-  "variations": [],
-  "updatedAt": "2026-11-02T04:15:05.414Z"
+  "variations": [
+    {
+      "id": "v1793594755069",
+      "no": "VO-001",
+      "title": "Variation - Electrical Plan Changes",
+      "desc": " - 1x Outdoor Powerpoint to Alfresco\n - 1x Indoor Powerpoint to Master ENS WC\n - 4x Pendant Light Point to Master, Bed 5, Bed 6 & Kitchen Island ",
+      "ref": "",
+      "requestedBy": "owner",
+      "nature": "added",
+      "dateRequested": "2026-11-02",
+      "dateIssued": "2026-11-02",
+      "amount": 0,
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 0,
+      "eotCauses": [],
+      "payment": "prior",
+      "paymentDue": "",
+      "status": "draft",
+      "sign": null,
+      "note": "",
+      "example": false
+    }
+  ],
+  "updatedAt": "2026-11-02T04:52:15.452Z"
 }
