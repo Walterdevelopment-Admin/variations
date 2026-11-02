@@ -58,7 +58,33 @@
       "sign": null,
       "note": "",
       "example": false
+    },
+    {
+      "id": "v1793596381660",
+      "no": "VO-003",
+      "title": "Variation - Inclusion List Changes",
+      "desc": " - Change Wall Mixer to EDEN In Wall Mixer Brushed Nickel\n - Change Towel Rail to EDEN Single Towel Rail Brushed Nickel 600mm\n - Change Toilet Roll Holder to EDEN Toilet Roll Holder Brushed Nickel\n - Change In-wall Combo Mixer to EDEN In Wall Mixer Combo Kit Brushed nickel\n",
+      "ref": "",
+      "requestedBy": "owner",
+      "nature": "changed",
+      "dateRequested": "2026-11-02",
+      "dateIssued": "2026-11-02",
+      "amount": 0,
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 0,
+      "eotCauses": [],
+      "payment": "next",
+      "paymentDue": "",
+      "status": "issued",
+      "sign": null,
+      "note": "",
+      "example": false
     }
   ],
-  "updatedAt": "2026-11-02T05:12:49.027Z"
+  "updatedAt": "2026-11-02T05:14:11.440Z"
 }
