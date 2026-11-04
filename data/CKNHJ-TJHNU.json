@@ -8,32 +8,6 @@
   },
   "variations": [
     {
-      "id": "v1793595679004",
-      "no": "VO-001",
-      "title": "Variation - Change Basin Mixer to EDEN Tall Basin Mixer Brushed Nickel",
-      "desc": "",
-      "ref": "",
-      "requestedBy": "owner",
-      "nature": "changed",
-      "dateRequested": "2026-08-05",
-      "dateIssued": "2026-11-02",
-      "amount": 308,
-      "charges": {
-        "admin": 0,
-        "design": 0,
-        "restocking": 0,
-        "other": 0
-      },
-      "eotDays": 0,
-      "eotCauses": [],
-      "payment": "prior",
-      "paymentDue": "",
-      "status": "issued",
-      "sign": null,
-      "note": "",
-      "example": false
-    },
-    {
       "id": "v1793596306380",
       "no": "VO-002",
       "title": "Variation  - Change Shower Rail to Mizu Drift Twin Rail Shower 250mm ABS Overhead with top Rail Water Inlet",
@@ -86,5 +60,5 @@
       "example": false
     }
   ],
-  "updatedAt": "2026-11-02T05:14:30.428Z"
+  "updatedAt": "2026-11-04T00:13:31.511Z"
 }
