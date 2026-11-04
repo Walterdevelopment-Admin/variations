@@ -8,32 +8,6 @@
   },
   "variations": [
     {
-      "id": "v1793596306380",
-      "no": "VO-002",
-      "title": "Variation  - Change Shower Rail to Mizu Drift Twin Rail Shower 250mm ABS Overhead with top Rail Water Inlet",
-      "desc": "Previous item discontinued",
-      "ref": "",
-      "requestedBy": "owner",
-      "nature": "changed",
-      "dateRequested": "2026-08-05",
-      "dateIssued": "2026-11-02",
-      "amount": 1648,
-      "charges": {
-        "admin": 0,
-        "design": 0,
-        "restocking": 0,
-        "other": 0
-      },
-      "eotDays": 0,
-      "eotCauses": [],
-      "payment": "prior",
-      "paymentDue": "",
-      "status": "issued",
-      "sign": null,
-      "note": "",
-      "example": false
-    },
-    {
       "id": "v1793596381660",
       "no": "VO-003",
       "title": "Variation - Inclusion List Changes",
@@ -60,5 +34,5 @@
       "example": false
     }
   ],
-  "updatedAt": "2026-11-04T00:13:31.511Z"
+  "updatedAt": "2026-11-04T00:13:36.533Z"
 }
