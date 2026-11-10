@@ -212,7 +212,33 @@
       },
       "note": "",
       "example": false
+    },
+    {
+      "id": "v1794272965765",
+      "no": "VO-007",
+      "title": "Extra - Supply & Install Bedding to Make Pool Coping and Surround Tile Level & Pool Coping, Mosaic, Waterline as per Pool Plan",
+      "desc": " - Supply & Install Bedding to Make Pool Coping and Surround Tile Level\n- Supply & Install Pool Coping, Mosaic, Waterline as per Pool Plan",
+      "ref": "",
+      "requestedBy": "owner",
+      "nature": "added",
+      "dateRequested": "2026-11-10",
+      "dateIssued": "2026-11-10",
+      "amount": 18520.7,
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 0,
+      "eotCauses": [],
+      "payment": "prior",
+      "paymentDue": "",
+      "status": "issued",
+      "sign": null,
+      "note": "",
+      "example": false
     }
   ],
-  "updatedAt": "2026-11-02T09:03:54.707Z"
+  "updatedAt": "2026-11-10T01:11:11.805Z"
 }
