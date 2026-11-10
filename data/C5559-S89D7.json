@@ -238,7 +238,33 @@
       "sign": null,
       "note": "",
       "example": false
+    },
+    {
+      "id": "v1794273237716",
+      "no": "VO-008",
+      "title": "Extra  - Supply & Install Silver Travertine \"Ashlar\" to pool surround, alfresco and portico",
+      "desc": "",
+      "ref": "",
+      "requestedBy": "owner",
+      "nature": "added",
+      "dateRequested": "2026-11-10",
+      "dateIssued": "2026-11-10",
+      "amount": 29986,
+      "charges": {
+        "admin": 0,
+        "design": 0,
+        "restocking": 0,
+        "other": 0
+      },
+      "eotDays": 0,
+      "eotCauses": [],
+      "payment": "prior",
+      "paymentDue": "",
+      "status": "issued",
+      "sign": null,
+      "note": "",
+      "example": false
     }
   ],
-  "updatedAt": "2026-11-10T01:11:11.805Z"
+  "updatedAt": "2026-11-10T01:14:38.889Z"
 }
