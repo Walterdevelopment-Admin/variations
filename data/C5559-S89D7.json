@@ -94,7 +94,7 @@
       "desc": "Change all 12 fans (Excluding Living) to Fanco Eco Silent Pro 52\" DC Ceiling Fan with Remote | White",
       "ref": "",
       "requestedBy": "owner",
-      "nature": "added",
+      "nature": "omitted",
       "dateRequested": "2026-10-23",
       "dateIssued": "2026-10-23",
       "amount": 1452,
@@ -266,5 +266,5 @@
       "example": false
     }
   ],
-  "updatedAt": "2026-11-23T23:16:38.687Z"
+  "updatedAt": "2026-11-23T23:17:41.470Z"
 }
